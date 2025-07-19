@@ -36,7 +36,7 @@ def create_reservation():
     data["status"] = "pending"
     result = reservations_collection.insert_one(data)
 
-    msg = f"📢 New Reservation!\n👤 {data['user_id']}\n📅 {data['date']} at {data['time_slot']}\n📍 {data['longitude']}, {data['altitude']} – Panels: {data['number_of_panels']}"
+    msg = f"📢 New Reservation!\n👤 {data['user_id']}\n📅 {data['date']} at {data['time_slot']}\n📍 {data['longitude']}, {data['latitude']} – Panels: {data['number_of_panels']}"
     send_whatsapp_message(msg)
 
     return jsonify({"message": "Reservation created", "id": str(result.inserted_id)})
