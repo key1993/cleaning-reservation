@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin – Reservations</title>
+  <style>
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #aaa; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <h1>Cleaning Reservations – Admin Panel</h1>
+  <table>
+    <tr>
+      <th>User ID</th>
+      <th>Date</th>
+      <th>Time Slot</th>
+      <th>Status</th>
+    </tr>
+    {% for r in reservations %}
+    <tr>
+      <td>{{ r.user_id }}</td>
+      <td>{{ r.date }}</td>
+      <td>{{ r.time_slot }}</td>
+      <td>{{ r.status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
