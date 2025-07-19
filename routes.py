@@ -3,14 +3,21 @@ from db import reservations_collection
 from models import validate_reservation
 from bson.objectid import ObjectId
 import requests
-import os
 import urllib.parse
+import os
 
 routes = Blueprint("routes", __name__)
 
-def send_whatsapp_message(user_id, date, time_slot):
-    # Placeholder - Fill in with Twilio or WhatsApp Cloud API details
-    print(f"WhatsApp Message: New reservation by {user_id} on {date} at {time_slot}")
+WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+9627XXXXXXX")
+CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
+
+def send_whatsapp_message(message):
+    encoded = urllib.parse.quote(message)
+    url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_PHONE}&text={encoded}&apikey={CALLMEBOT_API_KEY}"
+    try:
+        requests.get(url)
+    except Exception as e:
+        print("❌ WhatsApp failed:", e)
 
 @routes.route("/reservations", methods=["POST"])
 def create_reservation():
@@ -28,7 +35,10 @@ def create_reservation():
 
     data["status"] = "pending"
     result = reservations_collection.insert_one(data)
-    send_whatsapp_message(data["user_id"], data["date"], data["time_slot"])
+
+    msg = f"📢 New Reservation!\n👤 {data['user_id']}\n📅 {data['date']} at {data['time_slot']}\n📍 {data['longitude']}, {data['altitude']} – Panels: {data['number_of_panels']}"
+    send_whatsapp_message(msg)
+
     return jsonify({"message": "Reservation created", "id": str(result.inserted_id)})
 
 @routes.route("/reservations", methods=["GET"])
@@ -48,19 +58,12 @@ def get_reservation(id):
 
 @routes.route("/reservations/<id>", methods=["DELETE"])
 def cancel_reservation(id):
-    result = reservations_collection.delete_one({"_id": ObjectId(id)})
-    if result.deleted_count == 0:
+    r = reservations_collection.find_one({"_id": ObjectId(id)})
+    if not r:
         return jsonify({"error": "Not found"}), 404
-    return jsonify({"message": "Reservation canceled"})
-def send_whatsapp_message(user_id, date, time_slot):
-    phone = "+962796074185"  # Replace with your full number, e.g., +9627XXXXXXX
-    apikey = "6312358"
-    text = f"📢 New Cleaning Reservation!\n👤 User: {user_id}\n📅 Date: {date}\n🕒 Time: {time_slot}"
-    encoded_text = urllib.parse.quote(text)
 
-    url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={encoded_text}&apikey={apikey}"
-    try:
-        response = requests.get(url)
-        print("✅ WhatsApp sent:", response.status_code)
-    except Exception as e:
-        print("❌ WhatsApp failed:", e)
+    result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    msg = f"🚫 Reservation Cancelled:\n👤 {r['user_id']}\n📅 {r['date']} at {r['time_slot']}"
+    send_whatsapp_message(msg)
+
+    return jsonify({"message": "Reservation canceled"})
