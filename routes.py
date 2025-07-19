@@ -8,7 +8,7 @@ import os
 
 routes = Blueprint("routes", __name__)
 
-WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+9627XXXXXXX")
+WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
 CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
 
 def send_whatsapp_message(message):
