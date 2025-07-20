@@ -3,13 +3,41 @@
 <head>
   <title>Admin – Reservations</title>
   <style>
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #aaa; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .logo-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .logo-container img {
+      height: 80px;
+    }
+    h1 {
+      text-align: center;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
+
+  <!-- ✅ EBSHER Logo -->
+  <div class="logo-container">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="EBSHER Logo">
+  </div>
+
   <h1>Cleaning Reservations – Admin Panel</h1>
+
   <table>
     <tr>
       <th>User ID</th>
@@ -28,7 +56,18 @@
       <td>{{ r.longitude }}</td>
       <td>{{ r.latitude }}</td>
       <td>{{ r.number_of_panels }}</td>
-      <td>{{ r.status }}</td>
+      <td>
+        <form method="POST" action="/update_status">
+          <input type="hidden" name="reservation_id" value="{{ r._id }}">
+          <select name="status">
+            <option value="Pending" {% if r.status == 'Pending' %}selected{% endif %}>Pending</option>
+            <option value="Confirmed" {% if r.status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+            <option value="Canceled" {% if r.status == 'Canceled' %}selected{% endif %}>Canceled</option>
+            <option value="Done" {% if r.status == 'Done' %}selected{% endif %}>Done</option>
+          </select>
+          <button type="submit">Update</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </table>

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from db import reservations_collection
 from models import validate_reservation
 from bson.objectid import ObjectId
+from bson import ObjectId
 import requests
 import urllib.parse
 import os
@@ -77,3 +78,11 @@ def cancel_reservation():
 
     send_whatsapp_message(f"❌ Reservation cancelled:\n🧑 User: {user_id}\n📅 Date: {date}\n🕒 Slot: {time_slot}")
     return jsonify({'message': 'Reservation cancelled successfully'}), 200
+
+
+@app.route('/update_status', methods=['POST'])
+def update_status():
+    reservation_id = request.form['reservation_id']
+    new_status = request.form['status']
+    collection.update_one({'_id': ObjectId(reservation_id)}, {'$set': {'status': new_status}})
+    return redirect('/admin-panel')
