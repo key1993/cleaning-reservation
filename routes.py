@@ -1,8 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, redirect
 from db import reservations_collection
 from models import validate_reservation
 from bson.objectid import ObjectId
-from bson import ObjectId
 import requests
 import urllib.parse
 import os
@@ -51,7 +50,10 @@ def list_reservations():
 
 @routes.route("/reservations/<id>", methods=["GET"])
 def get_reservation(id):
-    r = reservations_collection.find_one({"_id": ObjectId(id)})
+    try:
+        r = reservations_collection.find_one({"_id": ObjectId(id)})
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
     if not r:
         return jsonify({"error": "Not found"}), 404
     r["_id"] = str(r["_id"])
@@ -81,12 +83,14 @@ def cancel_reservation():
 
 @routes.route("/reservations/<id>", methods=["DELETE"])
 def delete_by_id(id):
-    result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    try:
+        result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
     if result.deleted_count == 1:
         return jsonify({"message": "Reservation deleted"}), 200
     else:
         return jsonify({"error": "Reservation not found"}), 404
-
 
 @routes.route('/update_status', methods=['POST'])
 def update_status():
@@ -100,6 +104,8 @@ def update_status():
 
 @routes.route('/delete/<id>', methods=['POST'])
 def delete_reservation(id):
-    result = reservations_collection.delete_one({"_id": ObjectId(id)})
-    return redirect('/admin')
-
+    try:
+        reservations_collection.delete_one({"_id": ObjectId(id)})
+    except:
+        return redirect('/admin-panel')  # Redirect even if ID is invalid
+    return redirect('/admin-panel')
