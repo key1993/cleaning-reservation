@@ -36,7 +36,7 @@ def create_reservation():
     data["status"] = "pending"
     result = reservations_collection.insert_one(data)
 
-    msg = f"📢 New Reservation!\n👤 {data['user_id']}\n📅 {data['date']} at {data['time_slot']}\n📍 {data['longitude']}, {data['latitude']} – Panels: {data['number_of_panels']}"
+    msg = f"📢 New Enquiry!\n👤 {data['user_id']}\n📅 {data['date']} at {data['time_slot']}\n📍 {data['longitude']}, {data['latitude']} – Panels: {data['number_of_panels']}"
     send_whatsapp_message(msg)
 
     return jsonify({"message": "Reservation created", "id": str(result.inserted_id)})
@@ -92,4 +92,26 @@ def delete_reservation(id):
 
     except Exception as e:
         return jsonify({"error": "Invalid reservation ID"}), 400
+@routes.route('/update_cost', methods=['POST'])
+def update_cost():
+    reservation_id = request.form['reservation_id']
+    cost = float(request.form['cost'])
+    reservations_collection.update_one(
+        {'_id': ObjectId(reservation_id)},
+        {'$set': {'cost': cost}}
+    )
+    return redirect('/admin')
+
+@routes.route('/cost/<id>', methods=['GET'])
+def get_cost(id):
+    try:
+        reservation = reservations_collection.find_one({"_id": ObjectId(id)})
+        if not reservation:
+            return jsonify({"error": "Reservation not found"}), 404
+        cost = reservation.get("cost")
+        if cost is None:
+            return jsonify({"message": "Cost not set"}), 200
+        return jsonify({"cost": f"{cost} JOD"})
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
 

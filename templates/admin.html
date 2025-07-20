@@ -36,6 +36,9 @@
       display: inline-block;
       margin-right: 5px;
     }
+    .cost-input {
+      width: 80px;
+    }
   </style>
 </head>
 <body>
@@ -57,6 +60,7 @@
       <th>Latitude</th>
       <th>Panels</th>
       <th>Status</th>
+      <th>Cost (JOD)</th>
       <th>Action</th>
     </tr>
     {% for r in reservations %}
@@ -78,6 +82,13 @@
             <option value="Done" {% if r.status == 'Done' %}selected{% endif %}>Done</option>
           </select>
           <button type="submit">Update</button>
+        </form>
+      </td>
+      <td>
+        <form method="POST" action="/update_cost" class="inline-form">
+          <input type="hidden" name="reservation_id" value="{{ r._id }}">
+          <input type="number" name="cost" step="0.01" class="cost-input" value="{{ r.get('cost', '') }}">
+          <button type="submit">Save</button>
         </form>
       </td>
       <td>
