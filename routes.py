@@ -19,6 +19,18 @@ def send_whatsapp_message(message):
     except Exception as e:
         print("❌ WhatsApp failed:", e)
 
+@routes.route('/reservations/<id>', methods=['DELETE'])
+def delete_reservation_api(id):
+    try:
+        result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    except:
+        return jsonify({"error": "Invalid reservation ID"}), 400
+
+    if result.deleted_count == 1:
+        return jsonify({"message": "Reservation deleted"}), 200
+    else:
+        return jsonify({"error": "Reservation not found"}), 404
+	
 @routes.route("/reservations", methods=["POST"])
 def create_reservation():
     data = request.json
@@ -100,14 +112,3 @@ def delete_reservation(id):
         pass  # Safe fallback
     return redirect('/admin')  # ✅ Fixed redirect
 
-@routes.route('/reservations/<id>', methods=['DELETE'])
-def delete_reservation_api(id):
-    try:
-        result = reservations_collection.delete_one({"_id": ObjectId(id)})
-    except:
-        return jsonify({"error": "Invalid reservation ID"}), 400
-
-    if result.deleted_count == 1:
-        return jsonify({"message": "Reservation deleted"}), 200
-    else:
-        return jsonify({"error": "Reservation not found"}), 404
