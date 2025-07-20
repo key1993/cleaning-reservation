@@ -5,6 +5,7 @@ from bson.objectid import ObjectId
 import requests
 import urllib.parse
 import os
+from datetime import datetime
 
 routes = Blueprint("routes", __name__)
 
@@ -35,9 +36,15 @@ def create_reservation():
         return jsonify({"error": "Time slot already booked"}), 409
 
     data["status"] = "pending"
+    data["created_at"] = datetime.utcnow()
     result = reservations_collection.insert_one(data)
 
-    msg = f"📢 New Enquiry!\n👤 {data['user_id']}\n📅 {data['date']} at {data['time_slot']}\n📍 {data['longitude']}, {data['latitude']} – Panels: {data['number_of_panels']}"
+    msg = (
+        f"📢 New Enquiry!\n"
+        f"👤 {data.get('user_id', 'Unknown')}\n"
+        f"📅 {data.get('date', 'N/A')} at {data.get('time_slot', 'N/A')}\n"
+        f"📍 {data.get('longitude', 'N/A')}, {data.get('latitude', 'N/A')} – Panels: {data.get('number_of_panels', 'N/A')}"
+    )
     send_whatsapp_message(msg)
 
     return jsonify({"message": "Reservation created", "id": str(result.inserted_id)})
@@ -68,8 +75,7 @@ def update_status():
         {'_id': ObjectId(reservation_id)},
         {'$set': {'status': new_status}}
     )
-    return redirect('/admin')  # ✅ Fixed redirect
-
+    return redirect('/admin')
 
 @routes.route('/delete/<id>', methods=['POST'])
 def delete_reservation(id):
@@ -80,7 +86,6 @@ def delete_reservation(id):
 
         reservations_collection.delete_one({"_id": ObjectId(id)})
 
-        # WhatsApp message
         msg = (
             f"❌ Reservation Deleted:\n"
             f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
@@ -93,6 +98,7 @@ def delete_reservation(id):
 
     except Exception as e:
         return jsonify({"error": "Invalid reservation ID"}), 400
+
 @routes.route('/update_cost', methods=['POST'])
 def update_cost():
     reservation_id = request.form['reservation_id']
@@ -123,16 +129,14 @@ def approve_reservation(id):
         if not reservation:
             return jsonify({"error": "Reservation not found"}), 404
 
-        # Update status to Confirmed
         reservations_collection.update_one(
             {'_id': ObjectId(id)},
             {'$set': {'status': 'Confirmed'}}
         )
 
-        # ✅ WhatsApp confirmation message
         msg = (
             f"✅ Reservation Confirmed!\n"
-            f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
+            f"👤 {reservation.get('user_id', 'Unknown')}\n"
             f"📅 Date: {reservation.get('date', 'N/A')} at {reservation.get('time_slot', 'N/A')}\n"
             f"📍 Location: {reservation.get('longitude', 'N/A')}, {reservation.get('latitude', 'N/A')}\n"
             f"🔢 Panels: {reservation.get('number_of_panels', 'N/A')}"
@@ -144,7 +148,6 @@ def approve_reservation(id):
     except Exception as e:
         print("❌ Error during approval:", e)
         return jsonify({"error": "Invalid ID"}), 400
-
 
 @routes.route('/deny/<id>', methods=['POST'])
 def deny_reservation(id):
@@ -169,5 +172,3 @@ def deny_reservation(id):
 
     except Exception as e:
         return jsonify({"error": "Invalid ID"}), 400
-
-
