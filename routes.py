@@ -79,10 +79,21 @@ def cancel_reservation():
     send_whatsapp_message(f"❌ Reservation cancelled:\n🧑 User: {user_id}\n📅 Date: {date}\n🕒 Slot: {time_slot}")
     return jsonify({'message': 'Reservation cancelled successfully'}), 200
 
+@routes.route("/reservations/<id>", methods=["DELETE"])
+def delete_by_id(id):
+    result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    if result.deleted_count == 1:
+        return jsonify({"message": "Reservation deleted"}), 200
+    else:
+        return jsonify({"error": "Reservation not found"}), 404
+
 
 @routes.route('/update_status', methods=['POST'])
 def update_status():
     reservation_id = request.form['reservation_id']
     new_status = request.form['status']
-    collection.update_one({'_id': ObjectId(reservation_id)}, {'$set': {'status': new_status}})
+    reservations_collection.update_one(
+        {'_id': ObjectId(reservation_id)},
+        {'$set': {'status': new_status}}
+    )
     return redirect('/admin-panel')
