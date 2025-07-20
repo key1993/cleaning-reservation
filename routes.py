@@ -56,14 +56,24 @@ def get_reservation(id):
     r["_id"] = str(r["_id"])
     return jsonify(r)
 
-@routes.route("/reservations/<id>", methods=["DELETE"])
-def cancel_reservation(id):
-    r = reservations_collection.find_one({"_id": ObjectId(id)})
-    if not r:
-        return jsonify({"error": "Not found"}), 404
+@app.route('/cancel', methods=['DELETE'])
+def cancel_reservation():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    date = data.get('date')
+    time_slot = data.get('time_slot')
 
-    result = reservations_collection.delete_one({"_id": ObjectId(id)})
-    msg = f"🚫 Reservation Cancelled:\n👤 {r['user_id']}\n📅 {r['date']} at {r['time_slot']}"
-    send_whatsapp_message(msg)
+    if not user_id or not date or not time_slot:
+        return jsonify({'error': 'Missing required fields'}), 400
 
-    return jsonify({"message": "Reservation canceled"})
+    result = reservations_collection.delete_one({
+        'user_id': user_id,
+        'date': date,
+        'time_slot': time_slot
+    })
+
+    if result.deleted_count == 0:
+        return jsonify({'message': 'No matching reservation found'}), 404
+
+    send_whatsapp_message(f"❌ Reservation cancelled:\n🧑 User: {user_id}\n📅 Date: {date}\n🕒 Slot: {time_slot}")
+    return jsonify({'message': 'Reservation cancelled successfully'}), 200
