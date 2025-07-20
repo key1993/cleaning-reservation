@@ -97,3 +97,9 @@ def update_status():
         {'$set': {'status': new_status}}
     )
     return redirect('/admin-panel')
+
+@routes.route('/delete/<id>', methods=['POST'])
+def delete_reservation(id):
+    result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    return redirect('/admin')
+

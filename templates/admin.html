@@ -32,6 +32,10 @@
       font-size: 0.9em;
       color: #555;
     }
+    .inline-form {
+      display: inline-block;
+      margin-right: 5px;
+    }
   </style>
 </head>
 <body>
@@ -53,6 +57,7 @@
       <th>Latitude</th>
       <th>Panels</th>
       <th>Status</th>
+      <th>Action</th>
     </tr>
     {% for r in reservations %}
     <tr>
@@ -64,7 +69,7 @@
       <td>{{ r.latitude }}</td>
       <td>{{ r.number_of_panels }}</td>
       <td>
-        <form method="POST" action="/update_status">
+        <form method="POST" action="/update_status" class="inline-form">
           <input type="hidden" name="reservation_id" value="{{ r._id }}">
           <select name="status">
             <option value="Pending" {% if r.status == 'Pending' %}selected{% endif %}>Pending</option>
@@ -73,6 +78,11 @@
             <option value="Done" {% if r.status == 'Done' %}selected{% endif %}>Done</option>
           </select>
           <button type="submit">Update</button>
+        </form>
+      </td>
+      <td>
+        <form method="POST" action="/delete/{{ r._id }}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this reservation?');">
+          <button type="submit" style="color: red;">Delete</button>
         </form>
       </td>
     </tr>
