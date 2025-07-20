@@ -15,7 +15,8 @@ def send_whatsapp_message(message):
     encoded = urllib.parse.quote(message)
     url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_PHONE}&text={encoded}&apikey={CALLMEBOT_API_KEY}"
     try:
-        requests.get(url)
+        response = requests.get(url)
+        print("✅ WhatsApp sent:", response.status_code, response.text)
     except Exception as e:
         print("❌ WhatsApp failed:", e)
 
@@ -122,11 +123,13 @@ def approve_reservation(id):
         if not reservation:
             return jsonify({"error": "Reservation not found"}), 404
 
+        # Update status to Confirmed
         reservations_collection.update_one(
             {'_id': ObjectId(id)},
             {'$set': {'status': 'Confirmed'}}
         )
 
+        # ✅ WhatsApp confirmation message
         msg = (
             f"✅ Reservation Confirmed!\n"
             f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
@@ -139,7 +142,9 @@ def approve_reservation(id):
         return jsonify({"message": "Reservation confirmed"}), 200
 
     except Exception as e:
+        print("❌ Error during approval:", e)
         return jsonify({"error": "Invalid ID"}), 400
+
 
 @routes.route('/deny/<id>', methods=['POST'])
 def deny_reservation(id):
