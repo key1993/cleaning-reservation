@@ -73,16 +73,13 @@
       <td>{{ r.latitude }}</td>
       <td>{{ r.number_of_panels }}</td>
       <td>
-        <form method="POST" action="/update_status" class="inline-form">
-          <input type="hidden" name="reservation_id" value="{{ r._id }}">
-          <select name="status">
-            <option value="Pending" {% if r.status == 'Pending' %}selected{% endif %}>Pending</option>
-            <option value="Confirmed" {% if r.status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
-            <option value="Canceled" {% if r.status == 'Canceled' %}selected{% endif %}>Canceled</option>
-            <option value="Done" {% if r.status == 'Done' %}selected{% endif %}>Done</option>
-          </select>
-          <button type="submit">Update</button>
-        </form>
+        {% if r.status == 'Confirmed' %}
+          <span style="color: green; font-weight: bold;">Approved</span>
+        {% elif r.status == 'Canceled' %}
+          <span style="color: red; font-weight: bold;">Canceled</span>
+        {% else %}
+          <span style="color: orange; font-weight: bold;">Pending</span>
+        {% endif %}
       </td>
       <td>
         <form method="POST" action="/update_cost" class="inline-form">
