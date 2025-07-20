@@ -56,7 +56,7 @@ def get_reservation(id):
     r["_id"] = str(r["_id"])
     return jsonify(r)
 
-@app.route('/cancel', methods=['DELETE'])
+@routes.route('/cancel', methods=['DELETE'])
 def cancel_reservation():
     data = request.get_json()
     user_id = data.get('user_id')
