@@ -89,12 +89,13 @@ def update_status():
         {'_id': ObjectId(reservation_id)},
         {'$set': {'status': new_status}}
     )
-    return redirect('/admin-panel')
+    return redirect('/admin')  # ✅ Fixed redirect
+
 
 @routes.route('/delete/<id>', methods=['POST'])
 def delete_reservation(id):
     try:
         reservations_collection.delete_one({"_id": ObjectId(id)})
     except:
-        return redirect('/admin-panel')  # Redirect even if ID is invalid
-    return redirect('/admin-panel')
+        pass  # Safe fallback
+    return redirect('/admin')  # ✅ Fixed redirect
