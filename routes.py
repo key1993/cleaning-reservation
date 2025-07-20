@@ -115,3 +115,54 @@ def get_cost(id):
     except:
         return jsonify({"error": "Invalid ID format"}), 400
 
+@routes.route('/approve/<id>', methods=['POST'])
+def approve_reservation(id):
+    try:
+        reservation = reservations_collection.find_one({"_id": ObjectId(id)})
+        if not reservation:
+            return jsonify({"error": "Reservation not found"}), 404
+
+        reservations_collection.update_one(
+            {'_id': ObjectId(id)},
+            {'$set': {'status': 'Confirmed'}}
+        )
+
+        msg = (
+            f"✅ Reservation Confirmed!\n"
+            f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
+            f"📅 Date: {reservation.get('date', 'N/A')} at {reservation.get('time_slot', 'N/A')}\n"
+            f"📍 Location: {reservation.get('longitude', 'N/A')}, {reservation.get('latitude', 'N/A')}\n"
+            f"🔢 Panels: {reservation.get('number_of_panels', 'N/A')}"
+        )
+        send_whatsapp_message(msg)
+
+        return jsonify({"message": "Reservation confirmed"}), 200
+
+    except Exception as e:
+        return jsonify({"error": "Invalid ID"}), 400
+
+@routes.route('/deny/<id>', methods=['POST'])
+def deny_reservation(id):
+    try:
+        reservation = reservations_collection.find_one({"_id": ObjectId(id)})
+        if not reservation:
+            return jsonify({"error": "Reservation not found"}), 404
+
+        reservations_collection.update_one(
+            {'_id': ObjectId(id)},
+            {'$set': {'status': 'Canceled'}}
+        )
+
+        msg = (
+            f"❌ Reservation Canceled\n"
+            f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
+            f"🆔 ID: {id}"
+        )
+        send_whatsapp_message(msg)
+
+        return jsonify({"message": "Reservation canceled"}), 200
+
+    except Exception as e:
+        return jsonify({"error": "Invalid ID"}), 400
+
+
