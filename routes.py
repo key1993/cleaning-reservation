@@ -80,7 +80,7 @@ def cancel_reservation():
     return jsonify({'message': 'Reservation cancelled successfully'}), 200
 
 
-@app.route('/update_status', methods=['POST'])
+@admin.route('/update_status', methods=['POST'])
 def update_status():
     reservation_id = request.form['reservation_id']
     new_status = request.form['status']
