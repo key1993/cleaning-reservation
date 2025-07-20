@@ -19,18 +19,6 @@ def send_whatsapp_message(message):
     except Exception as e:
         print("❌ WhatsApp failed:", e)
 
-@routes.route('/reservations/<id>', methods=['DELETE'])
-def delete_reservation_api(id):
-    try:
-        result = reservations_collection.delete_one({"_id": ObjectId(id)})
-    except:
-        return jsonify({"error": "Invalid reservation ID"}), 400
-
-    if result.deleted_count == 1:
-        return jsonify({"message": "Reservation deleted"}), 200
-    else:
-        return jsonify({"error": "Reservation not found"}), 404
-	
 @routes.route("/reservations", methods=["POST"])
 def create_reservation():
     data = request.json
@@ -71,28 +59,6 @@ def get_reservation(id):
     r["_id"] = str(r["_id"])
     return jsonify(r)
 
-@routes.route('/cancel', methods=['DELETE'])
-def cancel_reservation():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    date = data.get('date')
-    time_slot = data.get('time_slot')
-
-    if not user_id or not date or not time_slot:
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    result = reservations_collection.delete_one({
-        'user_id': user_id,
-        'date': date,
-        'time_slot': time_slot
-    })
-
-    if result.deleted_count == 0:
-        return jsonify({'message': 'No matching reservation found'}), 404
-
-    send_whatsapp_message(f"❌ Reservation cancelled:\n🧑 User: {user_id}\n📅 Date: {date}\n🕒 Slot: {time_slot}")
-    return jsonify({'message': 'Reservation cancelled successfully'}), 200
-
 @routes.route('/update_status', methods=['POST'])
 def update_status():
     reservation_id = request.form['reservation_id']
@@ -107,8 +73,23 @@ def update_status():
 @routes.route('/delete/<id>', methods=['POST'])
 def delete_reservation(id):
     try:
+        reservation = reservations_collection.find_one({"_id": ObjectId(id)})
+        if not reservation:
+            return jsonify({"error": "Reservation not found"}), 404
+
         reservations_collection.delete_one({"_id": ObjectId(id)})
-    except:
-        pass  # Safe fallback
-    return redirect('/admin')  # ✅ Fixed redirect
+
+        # WhatsApp message
+        msg = (
+            f"❌ Reservation Deleted:\n"
+            f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
+            f"📅 Date: {reservation.get('date', 'N/A')} at {reservation.get('time_slot', 'N/A')}\n"
+            f"📍 {reservation.get('longitude', 'N/A')}, {reservation.get('latitude', 'N/A')} – Panels: {reservation.get('number_of_panels', 'N/A')}"
+        )
+        send_whatsapp_message(msg)
+
+        return jsonify({"message": "Reservation deleted"}), 200
+
+    except Exception as e:
+        return jsonify({"error": "Invalid reservation ID"}), 400
 
