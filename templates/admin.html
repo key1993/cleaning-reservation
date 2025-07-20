@@ -27,6 +27,11 @@
       text-align: center;
       margin-top: 10px;
     }
+    .id-cell {
+      font-family: monospace;
+      font-size: 0.9em;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -40,6 +45,7 @@
 
   <table>
     <tr>
+      <th>ID</th>
       <th>User ID</th>
       <th>Date</th>
       <th>Time Slot</th>
@@ -50,6 +56,7 @@
     </tr>
     {% for r in reservations %}
     <tr>
+      <td class="id-cell">{{ r._id }}</td>
       <td>{{ r.user_id }}</td>
       <td>{{ r.date }}</td>
       <td>{{ r.time_slot }}</td>
