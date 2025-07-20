@@ -99,3 +99,15 @@ def delete_reservation(id):
     except:
         pass  # Safe fallback
     return redirect('/admin')  # ✅ Fixed redirect
+
+@routes.route('/reservations/<id>', methods=['DELETE'])
+def delete_reservation_api(id):
+    try:
+        result = reservations_collection.delete_one({"_id": ObjectId(id)})
+    except:
+        return jsonify({"error": "Invalid reservation ID"}), 400
+
+    if result.deleted_count == 1:
+        return jsonify({"message": "Reservation deleted"}), 200
+    else:
+        return jsonify({"error": "Reservation not found"}), 404
