@@ -130,8 +130,8 @@ def get_cost(id):
             created_at = datetime.fromisoformat(created_at)
 
         # Check time window: only valid for 3 minutes after creation
-        if datetime.utcnow() > created_at + timedelta(minutes=3):
-            return jsonify({"error": "Cost access expired (3-minute window)"}), 403
+        if datetime.utcnow() > created_at + timedelta(minutes=600):
+            return jsonify({"error": "Reservation Expired"}), 403
 
         cost = reservation.get("cost")
         if cost is None:
