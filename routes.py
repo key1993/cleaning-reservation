@@ -5,7 +5,7 @@ from bson.objectid import ObjectId
 import requests
 import urllib.parse
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 routes = Blueprint("routes", __name__)
 
@@ -115,14 +115,32 @@ def get_cost(id):
         reservation = reservations_collection.find_one({"_id": ObjectId(id)})
         if not reservation:
             return jsonify({"error": "Reservation not found"}), 404
+
+        # Deny if already approved
+        if reservation.get("status") == "Confirmed":
+            return jsonify({"error": "Cost access denied: reservation already approved"}), 403
+
+        # Ensure creation time is stored
+        created_at = reservation.get("created_at")
+        if not created_at:
+            return jsonify({"error": "Missing creation timestamp"}), 400
+
+        # Convert from string if needed (MongoDB might store as ISO string)
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+
+        # Check time window: only valid for 3 minutes after creation
+        if datetime.utcnow() > created_at + timedelta(minutes=3):
+            return jsonify({"error": "Cost access expired (3-minute window)"}), 403
+
         cost = reservation.get("cost")
         if cost is None:
             return jsonify({"message": "Cost not set"}), 200
-        return jsonify({"cost": f"{cost} JOD"})
-    except:
-        return jsonify({"error": "Invalid ID format"}), 400
 
-@routes.route('/approve/<id>', methods=['POST'])
+        return jsonify({"cost": f"{cost} JOD"})
+
+    except Exception as e:
+        return jsonify({"error": f"Server error: {str(e)}"}), 400@routes.route('/approve/<id>', methods=['POST'])
 def approve_reservation(id):
     try:
         reservation = reservations_collection.find_one({"_id": ObjectId(id)})
