@@ -138,15 +138,12 @@ def approve_reservation(id):
             f"✅ Reservation Confirmed!\n"
             f"👤 {reservation.get('user_id', 'Unknown')}\n"
             f"📅 Date: {reservation.get('date', 'N/A')} at {reservation.get('time_slot', 'N/A')}\n"
-            f"📍 Location: {reservation.get('longitude', 'N/A')}, {reservation.get('latitude', 'N/A')}\n"
-            f"🔢 Panels: {reservation.get('number_of_panels', 'N/A')}"
         )
         send_whatsapp_message(msg)
 
         return jsonify({"message": "Reservation confirmed"}), 200
 
     except Exception as e:
-        print("❌ Error during approval:", e)
         return jsonify({"error": "Invalid ID"}), 400
 
 @routes.route('/deny/<id>', methods=['POST'])
