@@ -140,7 +140,9 @@ def get_cost(id):
         return jsonify({"cost": f"{cost} JOD"})
 
     except Exception as e:
-        return jsonify({"error": f"Server error: {str(e)}"}), 400@routes.route('/approve/<id>', methods=['POST'])
+        return jsonify({"error": f"Server error: {str(e)}"}), 400
+
+@routes.route('/approve/<id>', methods=['POST'])
 def approve_reservation(id):
     try:
         reservation = reservations_collection.find_one({"_id": ObjectId(id)})
