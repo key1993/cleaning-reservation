@@ -3,6 +3,9 @@
 <head>
   <title>Admin – Reservations</title>
   <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -39,6 +42,21 @@
     .cost-input {
       width: 80px;
     }
+    .status-label {
+      font-weight: bold;
+    }
+    .status-pending {
+      color: orange;
+    }
+    .status-confirmed {
+      color: green;
+    }
+    .status-canceled {
+      color: red;
+    }
+    .status-done {
+      color: blue;
+    }
   </style>
 </head>
 <body>
@@ -61,7 +79,7 @@
       <th>Panels</th>
       <th>Status</th>
       <th>Cost (JOD)</th>
-      <th>Action</th>
+      <th>Actions</th>
     </tr>
     {% for r in reservations %}
     <tr>
@@ -74,11 +92,13 @@
       <td>{{ r.number_of_panels }}</td>
       <td>
         {% if r.status == 'Confirmed' %}
-          <span style="color: green; font-weight: bold;">Approved</span>
+          <span class="status-label status-confirmed">Approved</span>
         {% elif r.status == 'Canceled' %}
-          <span style="color: red; font-weight: bold;">Canceled</span>
+          <span class="status-label status-canceled">Canceled</span>
+        {% elif r.status == 'Done' %}
+          <span class="status-label status-done">Done</span>
         {% else %}
-          <span style="color: orange; font-weight: bold;">Pending</span>
+          <span class="status-label status-pending">Pending</span>
         {% endif %}
       </td>
       <td>
@@ -89,6 +109,14 @@
         </form>
       </td>
       <td>
+        {% if r.status == 'Pending' %}
+          <form method="POST" action="/approve/{{ r._id }}" class="inline-form">
+            <button type="submit" style="color: green;">Approve</button>
+          </form>
+          <form method="POST" action="/deny/{{ r._id }}" class="inline-form">
+            <button type="submit" style="color: orange;">Deny</button>
+          </form>
+        {% endif %}
         <form method="POST" action="/delete/{{ r._id }}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this reservation?');">
           <button type="submit" style="color: red;">Delete</button>
         </form>
@@ -96,5 +124,6 @@
     </tr>
     {% endfor %}
   </table>
+
 </body>
 </html>

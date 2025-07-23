@@ -7,6 +7,8 @@ import urllib.parse
 import os
 from datetime import datetime, timedelta
 
+clients_collection = db['clients']
+
 routes = Blueprint("routes", __name__)
 
 WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
@@ -189,3 +191,16 @@ def deny_reservation(id):
 
     except Exception as e:
         return jsonify({"error": "Invalid ID"}), 400
+
+@routes.route("/register_client", methods=["POST"])
+def register_client():
+    data = request.json
+    required_fields = ["full_name", "signup_date", "payment_method", "next_payment_date", "phone", "subscription_type", "location", "system_type", "ha_url", "ha_token"]
+
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    clients_collection.insert_one(data)
+
+    return jsonify({"message": "Client registered successfully"}), 200
+
