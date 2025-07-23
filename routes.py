@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, redirect
+from flask import Blueprint, request, jsonify, redirect, render_template
 from db import reservations_collection, clients_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
@@ -204,4 +204,10 @@ def register_client():
     clients_collection.insert_one(data)
 
     return jsonify({"message": "Client registered successfully"}), 200
+
+
+@routes.route('/clients')
+def show_clients():
+    clients = list(clients_collection.find())
+    return render_template('clients.html', clients=clients)
 

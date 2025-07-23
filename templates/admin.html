@@ -1,59 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Admin – Reservations</title>
+  <title>Admin – Dashboard</title>
   <style>
     body {
       font-family: Arial, sans-serif;
+      padding: 20px;
     }
+
+    .logo-container {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .logo-container img {
+      height: 80px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .tab {
+      margin-top: 30px;
+    }
+
+    .tab-buttons {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .tab-buttons button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 10px;
     }
+
     th, td {
       border: 1px solid #aaa;
       padding: 8px;
       text-align: left;
     }
+
     th {
       background-color: #f2f2f2;
     }
-    .logo-container {
-      text-align: center;
-      margin-top: 20px;
-    }
-    .logo-container img {
-      height: 80px;
-    }
-    h1 {
-      text-align: center;
-      margin-top: 10px;
-    }
+
     .id-cell {
       font-family: monospace;
       font-size: 0.9em;
       color: #555;
     }
+
     .inline-form {
       display: inline-block;
       margin-right: 5px;
     }
+
     .cost-input {
       width: 80px;
     }
+
     .status-label {
       font-weight: bold;
     }
+
     .status-pending {
       color: orange;
     }
+
     .status-confirmed {
       color: green;
     }
+
     .status-canceled {
       color: red;
     }
+
     .status-done {
       color: blue;
     }
@@ -61,69 +100,122 @@
 </head>
 <body>
 
-  <!-- ✅ EBSHER Logo -->
+  <!-- Logo -->
   <div class="logo-container">
     <img src="{{ url_for('static', filename='logo.png') }}" alt="EBSHER Logo">
   </div>
 
-  <h1>Cleaning Reservations – Admin Panel</h1>
+  <h1>Admin Panel</h1>
 
-  <table>
-    <tr>
-      <th>ID</th>
-      <th>User ID</th>
-      <th>Date</th>
-      <th>Time Slot</th>
-      <th>Longitude</th>
-      <th>Latitude</th>
-      <th>Panels</th>
-      <th>Status</th>
-      <th>Cost (JOD)</th>
-      <th>Actions</th>
-    </tr>
-    {% for r in reservations %}
-    <tr>
-      <td class="id-cell">{{ r._id }}</td>
-      <td>{{ r.user_id }}</td>
-      <td>{{ r.date }}</td>
-      <td>{{ r.time_slot }}</td>
-      <td>{{ r.longitude }}</td>
-      <td>{{ r.latitude }}</td>
-      <td>{{ r.number_of_panels }}</td>
-      <td>
-        {% if r.status == 'Confirmed' %}
-          <span class="status-label status-confirmed">Approved</span>
-        {% elif r.status == 'Canceled' %}
-          <span class="status-label status-canceled">Canceled</span>
-        {% elif r.status == 'Done' %}
-          <span class="status-label status-done">Done</span>
-        {% else %}
-          <span class="status-label status-pending">Pending</span>
-        {% endif %}
-      </td>
-      <td>
-        <form method="POST" action="/update_cost" class="inline-form">
-          <input type="hidden" name="reservation_id" value="{{ r._id }}">
-          <input type="number" name="cost" step="0.01" class="cost-input" value="{{ r.get('cost', '') }}">
-          <button type="submit">Save</button>
-        </form>
-      </td>
-      <td>
-        {% if r.status == 'Pending' %}
-          <form method="POST" action="/approve/{{ r._id }}" class="inline-form">
-            <button type="submit" style="color: green;">Approve</button>
+  <!-- Tabs -->
+  <div class="tab-buttons">
+    <button onclick="showTab('reservations')">Reservations</button>
+    <button onclick="showTab('clients')">Clients</button>
+  </div>
+
+  <!-- Reservation Tab -->
+  <div id="reservations" class="tab-content active">
+    <h2>Cleaning Reservations</h2>
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>User ID</th>
+        <th>Date</th>
+        <th>Time Slot</th>
+        <th>Longitude</th>
+        <th>Latitude</th>
+        <th>Panels</th>
+        <th>Status</th>
+        <th>Cost (JOD)</th>
+        <th>Actions</th>
+      </tr>
+      {% for r in reservations %}
+      <tr>
+        <td class="id-cell">{{ r._id }}</td>
+        <td>{{ r.user_id }}</td>
+        <td>{{ r.date }}</td>
+        <td>{{ r.time_slot }}</td>
+        <td>{{ r.longitude }}</td>
+        <td>{{ r.latitude }}</td>
+        <td>{{ r.number_of_panels }}</td>
+        <td>
+          {% if r.status == 'Confirmed' %}
+            <span class="status-label status-confirmed">Approved</span>
+          {% elif r.status == 'Canceled' %}
+            <span class="status-label status-canceled">Canceled</span>
+          {% elif r.status == 'Done' %}
+            <span class="status-label status-done">Done</span>
+          {% else %}
+            <span class="status-label status-pending">Pending</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="/update_cost" class="inline-form">
+            <input type="hidden" name="reservation_id" value="{{ r._id }}">
+            <input type="number" name="cost" step="0.01" class="cost-input" value="{{ r.get('cost', '') }}">
+            <button type="submit">Save</button>
           </form>
-          <form method="POST" action="/deny/{{ r._id }}" class="inline-form">
-            <button type="submit" style="color: orange;">Deny</button>
+        </td>
+        <td>
+          {% if r.status == 'Pending' %}
+            <form method="POST" action="/approve/{{ r._id }}" class="inline-form">
+              <button type="submit" style="color: green;">Approve</button>
+            </form>
+            <form method="POST" action="/deny/{{ r._id }}" class="inline-form">
+              <button type="submit" style="color: orange;">Deny</button>
+            </form>
+          {% endif %}
+          <form method="POST" action="/delete/{{ r._id }}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this reservation?');">
+            <button type="submit" style="color: red;">Delete</button>
           </form>
-        {% endif %}
-        <form method="POST" action="/delete/{{ r._id }}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this reservation?');">
-          <button type="submit" style="color: red;">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <!-- Clients Tab -->
+  <div id="clients" class="tab-content">
+    <h2>Registered Clients</h2>
+    <table>
+      <tr>
+        <th>Full Name</th>
+        <th>Signup Date</th>
+        <th>Phone</th>
+        <th>Payment Method</th>
+        <th>Next Payment</th>
+        <th>Subscription</th>
+        <th>Location</th>
+        <th>System Type</th>
+        <th>HA URL</th>
+        <th>HA Token</th>
+      </tr>
+      {% for c in clients %}
+      <tr>
+        <td>{{ c.full_name }}</td>
+        <td>{{ c.signup_date }}</td>
+        <td>{{ c.phone }}</td>
+        <td>{{ c.payment_method }}</td>
+        <td>{{ c.next_payment_date }}</td>
+        <td>{{ c.subscription_type }}</td>
+        <td>{{ c.location }}</td>
+        <td>{{ c.system_type }}</td>
+        <td>{{ c.ha_url }}</td>
+        <td>{{ c.ha_token }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <!-- Script to handle tabs -->
+  <script>
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.getElementById(tabId).classList.add('active');
+    }
+  </script>
 
 </body>
 </html>
