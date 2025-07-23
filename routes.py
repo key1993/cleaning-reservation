@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, redirect
-from db import reservations_collection
+from db import reservations_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
+
 import requests
 import urllib.parse
 import os
