@@ -7,7 +7,7 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://amerkiwan7723:oPQwW3nr3ur
 DB_NAME = os.environ.get("DB_NAME", "cleaning_reservation")
 
 client = MongoClient(MONGO_URI)
-db = client[DB_NAME]  # ← this line replaces .get_default_database()
+db = client["cleaning"]
 
 # Collections
 reservations_collection = db["reservations"]

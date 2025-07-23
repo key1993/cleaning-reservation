@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect
-from db import reservations_collection, clients_collection
+from db import reservations_collection, clients_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
 
