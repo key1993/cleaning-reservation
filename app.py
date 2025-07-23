@@ -3,6 +3,7 @@ from routes import routes
 from admin import admin
 import os
 from pymongo import MongoClient
+from db import db  # and optionally, reservations_collection if needed
 
 app = Flask(__name__)
 
