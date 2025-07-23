@@ -13,7 +13,7 @@
       margin-bottom: 10px;
     }
     .logo-container img {
-      height: 80px;
+      height: 130px; /* enlarged logo */
     }
 
     h1 {
@@ -175,52 +175,62 @@
   </div>
 
   <!-- Clients Tab -->
-<div id="clients" class="tab-content">
-  <h2>Registered Clients (Total: {{ clients|length }})</h2>
-  <table>
-    <tr>
-      <th>#</th>
-      <th>Full Name</th>
-      <th>Signup Date</th>
-      <th>Phone</th>
-      <th>Payment Method</th>
-      <th>Next Payment</th>
-      <th>Subscription</th>
-      <th>Location</th>
-      <th>System Type</th>
-      <th>HA URL</th>
-      <th>HA Token</th>
-      <th>Actions</th>
-    </tr>
-    {% for c in clients %}
-    <tr>
-      <td>{{ loop.index }}</td>
-      <td>{{ c.full_name }}</td>
-      <td>{{ c.signup_date }}</td>
-      <td>{{ c.phone }}</td>
-      <td>{{ c.payment_method }}</td>
-      <td>{{ c.next_payment_date }}</td>
-      <td>
-        <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">
-          <select name="subscription_type">
-            <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
-            <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
-          </select>
-          <button type="submit">Update</button>
-        </form>
-      </td>
-      <td>{{ c.location }}</td>
-      <td>{{ c.system_type }}</td>
-      <td>{{ c.ha_url }}</td>
-      <td>{{ c.ha_token }}</td>
-      <td>
-        <form method="POST" action="/delete_client/{{ c._id }}" class="inline-form" onsubmit="return confirm('Delete this client?');">
-          <button type="submit" style="color: red;">Delete</button>
-        </form>
-        <!-- Future: Add full edit support here -->
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+  <div id="clients" class="tab-content">
+    <h2>Registered Clients (Total: {{ clients|length }})</h2>
+    <table>
+      <tr>
+        <th>#</th>
+        <th>Full Name</th>
+        <th>Signup Date</th>
+        <th>Phone</th>
+        <th>Payment Method</th>
+        <th>Next Payment</th>
+        <th>Subscription</th>
+        <th>Location</th>
+        <th>System Type</th>
+        <th>HA URL</th>
+        <th>HA Token</th>
+        <th>Actions</th>
+      </tr>
+      {% for c in clients %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ c.full_name }}</td>
+        <td>{{ c.signup_date }}</td>
+        <td>{{ c.phone }}</td>
+        <td>{{ c.payment_method }}</td>
+        <td>{{ c.next_payment_date }}</td>
+        <td>
+          <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">
+            <select name="subscription_type">
+              <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
+              <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
+            </select>
+            <button type="submit">Update</button>
+          </form>
+        </td>
+        <td>{{ c.location }}</td>
+        <td>{{ c.system_type }}</td>
+        <td>{{ c.ha_url }}</td>
+        <td>{{ c.ha_token }}</td>
+        <td>
+          <form method="POST" action="/delete_client/{{ c._id }}" class="inline-form" onsubmit="return confirm('Delete this client?');">
+            <button type="submit" style="color: red;">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
 
+  <!-- JavaScript for Tabs -->
+  <script>
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.getElementById(tabId).classList.add('active');
+    }
+  </script>
+</body>
+</html>
