@@ -211,3 +211,11 @@ def show_clients():
     clients = list(clients_collection.find())
     return render_template('clients.html', clients=clients)
 
+
+@routes.route("/admin")
+def admin_panel():
+    reservations = list(reservations_collection.find())
+    clients = list(clients_collection.find())
+    return render_template("admin.html", reservations=reservations, clients=clients)
+
+
