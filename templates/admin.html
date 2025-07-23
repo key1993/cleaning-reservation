@@ -122,8 +122,7 @@
         <th>User ID</th>
         <th>Date</th>
         <th>Time Slot</th>
-        <th>Longitude</th>
-        <th>Latitude</th>
+        <th>Location</th>
         <th>Panels</th>
         <th>Status</th>
         <th>Cost (JOD)</th>
@@ -135,8 +134,15 @@
         <td>{{ r.user_id }}</td>
         <td>{{ r.date }}</td>
         <td>{{ r.time_slot }}</td>
-        <td>{{ r.longitude }}</td>
-        <td>{{ r.latitude }}</td>
+        <td>
+          {% if r.latitude and r.longitude %}
+            <a href="https://www.google.com/maps?q={{ r.latitude }},{{ r.longitude }}" target="_blank">
+              ({{ r.latitude }}, {{ r.longitude }})
+            </a>
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
         <td>{{ r.number_of_panels }}</td>
         <td>
           {% if r.status == 'Confirmed' %}
@@ -209,7 +215,16 @@
             <button type="submit">Update</button>
           </form>
         </td>
-        <td>{{ c.location }}</td>
+        <td>
+          {% set parts = c.location.split(',') %}
+          {% if parts | length == 2 %}
+            <a href="https://www.google.com/maps?q={{ parts[0] | trim }},{{ parts[1] | trim }}" target="_blank">
+              ({{ parts[0] | trim }}, {{ parts[1] | trim }})
+            </a>
+          {% else %}
+            {{ c.location }}
+          {% endif %}
+        </td>
         <td>{{ c.system_type }}</td>
         <td>{{ c.ha_url }}</td>
         <td>{{ c.ha_token }}</td>
