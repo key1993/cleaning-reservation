@@ -217,5 +217,23 @@ def admin_panel():
     reservations = list(reservations_collection.find())
     clients = list(clients_collection.find())
     return render_template("admin.html", reservations=reservations, clients=clients)
+@routes.route("/delete_client/<id>", methods=["POST"])
+def delete_client(id):
+    try:
+        clients_collection.delete_one({"_id": ObjectId(id)})
+        return redirect("/admin")
+    except Exception:
+        return jsonify({"error": "Failed to delete client"}), 400
+
+@routes.route("/update_subscription/<id>", methods=["POST"])
+def update_subscription(id):
+    new_type = request.form.get("subscription_type")
+    if new_type not in ["monthly", "yearly"]:
+        return jsonify({"error": "Invalid subscription type"}), 400
+    clients_collection.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"subscription_type": new_type}}
+    )
+    return redirect("/admin")
 
 
