@@ -196,7 +196,8 @@ def deny_reservation(id):
 @routes.route("/register_client", methods=["POST"])
 def register_client():
     data = request.json
-    required_fields = ["full_name", "signup_date", "payment_method", "next_payment_date", "phone", "subscription_type", "location", "system_type", "ha_url", "ha_token"]
+    required_fields = ["full_name", "signup_date", "phone", "subscription_type", "location", "system_type", "ha_url", "ha_token"]
+
 
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields"}), 400
