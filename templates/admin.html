@@ -7,95 +7,66 @@
       font-family: Arial, sans-serif;
       padding: 20px;
     }
-
     .logo-container {
       text-align: center;
       margin-bottom: 10px;
     }
     .logo-container img {
-      height: 130px; /* enlarged logo */
+      height: 130px;
     }
-
     h1 {
       text-align: center;
       margin-top: 10px;
     }
-
-    .tab {
-      margin-top: 30px;
-    }
-
     .tab-buttons {
       display: flex;
       justify-content: center;
       margin-bottom: 10px;
     }
-
     .tab-buttons button {
       margin: 0 10px;
       padding: 10px 20px;
       cursor: pointer;
       font-size: 16px;
     }
-
     .tab-content {
       display: none;
     }
-
     .tab-content.active {
       display: block;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
     }
-
     th, td {
       border: 1px solid #aaa;
       padding: 8px;
       text-align: left;
     }
-
     th {
       background-color: #f2f2f2;
     }
-
     .id-cell {
       font-family: monospace;
       font-size: 0.9em;
       color: #555;
     }
-
     .inline-form {
       display: inline-block;
       margin-right: 5px;
     }
-
     .cost-input {
       width: 80px;
     }
-
     .status-label {
       font-weight: bold;
     }
-
-    .status-pending {
-      color: orange;
-    }
-
-    .status-confirmed {
-      color: green;
-    }
-
-    .status-canceled {
-      color: red;
-    }
-
-    .status-done {
-      color: blue;
-    }
+    .status-pending { color: orange; }
+    .status-confirmed { color: green; }
+    .status-canceled { color: red; }
+    .status-done { color: blue; }
   </style>
 </head>
 <body>
@@ -204,7 +175,14 @@
         <td>{{ c.full_name }}</td>
         <td>{{ c.signup_date }}</td>
         <td>{{ c.phone }}</td>
-        <td>{{ c.payment_method }}</td>
+        <td>
+          <form method="POST" action="/update_payment_method/{{ c._id }}" class="inline-form">
+            <select name="payment_method" onchange="this.form.submit()">
+              <option value="monthly" {% if c.payment_method == 'monthly' %}selected{% endif %}>Monthly</option>
+              <option value="yearly" {% if c.payment_method == 'yearly' %}selected{% endif %}>Yearly</option>
+            </select>
+          </form>
+        </td>
         <td>{{ c.next_payment_date }}</td>
         <td>
           <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">

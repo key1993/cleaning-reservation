@@ -238,3 +238,32 @@ def update_subscription(id):
     return redirect("/admin")
 
 
+@routes.route("/update_payment_method/<client_id>", methods=["POST"])
+def update_payment_method(client_id):
+    payment_method = request.form.get("payment_method")
+    if payment_method not in ["monthly", "yearly"]:
+        return redirect("/admin")
+
+    now = datetime.now()
+    next_payment = now + timedelta(days=30 if payment_method == "monthly" else 365)
+    formatted_next_payment = next_payment.strftime("%Y-%m-%d")
+
+    clients_collection.update_one(
+        {"_id": ObjectId(client_id)},
+        {"$set": {"payment_method": payment_method, "next_payment_date": formatted_next_payment}}
+    )
+    return redirect("/admin")
+
+@routes.route("/check_payment_reminders")
+def check_payment_reminders():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    clients = list(clients_collection.find({"next_payment_date": today_str}))
+
+    for c in clients:
+        name = c.get("full_name", "Unknown")
+        phone = c.get("phone", "Unknown")
+        payment_method = c.get("payment_method", "Unknown")
+        msg = f"💰 Payment Reminder\nClient: {name}\nPhone: {phone}\nMethod: {payment_method}\nPlease proceed with the payment today."
+        send_whatsapp_message(msg)
+
+    return jsonify({"message": f"✅ {len(clients)} reminder(s) sent."})
