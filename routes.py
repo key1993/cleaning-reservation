@@ -224,11 +224,22 @@ def my_reservations():
 @routes.route("/register_client", methods=["POST"])
 def register_client():
     data = request.json
-    required_fields = ["full_name", "signup_date", "phone", "location", "system_type", "ha_url", "ha_token"]
-
+    required_fields = ["full_name", "signup_date", "phone", "location", "system_type", "ha_url", "ha_token", "subscription_type"]
 
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields"}), 400
+
+    # Calculate initial next payment date based on signup date and subscription type
+    signup_date = datetime.strptime(data["signup_date"], "%Y-%m-%d")
+    subscription_type = data.get("subscription_type", "monthly")
+    
+    if subscription_type == "monthly":
+        next_payment_date = signup_date + timedelta(days=30)
+    else:  # yearly
+        next_payment_date = signup_date + timedelta(days=365)
+    
+    data["next_payment_date"] = next_payment_date.strftime("%Y-%m-%d")
+    data["subscription_type"] = subscription_type
 
     clients_collection.insert_one(data)
 
@@ -245,7 +256,8 @@ def show_clients():
 def admin_panel():
     reservations = list(reservations_collection.find())
     clients = list(clients_collection.find())
-    return render_template("admin.html", reservations=reservations, clients=clients)
+    now = datetime.now().strftime("%Y-%m-%d")
+    return render_template("admin.html", reservations=reservations, clients=clients, now=now)
 @routes.route("/delete_client/<id>", methods=["POST"])
 def delete_client(id):
     try:
@@ -259,12 +271,80 @@ def update_subscription(id):
     new_type = request.form.get("subscription_type")
     if new_type not in ["monthly", "yearly"]:
         return jsonify({"error": "Invalid subscription type"}), 400
+    
+    # Get current client data
+    client = clients_collection.find_one({"_id": ObjectId(id)})
+    if not client:
+        return jsonify({"error": "Client not found"}), 404
+    
+    # Calculate next payment date based on signup date and subscription type
+    signup_date = datetime.strptime(client.get("signup_date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d")
+    
+    if new_type == "monthly":
+        # Calculate months since signup and add to get next payment
+        months_since_signup = (datetime.now().year - signup_date.year) * 12 + (datetime.now().month - signup_date.month)
+        next_payment_date = signup_date + timedelta(days=30 * (months_since_signup + 1))
+    else:  # yearly
+        # Calculate years since signup and add to get next payment
+        years_since_signup = datetime.now().year - signup_date.year
+        next_payment_date = signup_date + timedelta(days=365 * (years_since_signup + 1))
+    
+    formatted_next_payment = next_payment_date.strftime("%Y-%m-%d")
+    
     clients_collection.update_one(
         {"_id": ObjectId(id)},
-        {"$set": {"subscription_type": new_type}}
+        {"$set": {
+            "subscription_type": new_type,
+            "next_payment_date": formatted_next_payment
+        }}
     )
     return redirect("/admin")
 
+@routes.route("/confirm_payment", methods=["POST"])
+def confirm_payment():
+    data = request.json
+    client_id = data.get("clientId")
+    subscription_type = data.get("subscriptionType")
+    
+    if not client_id or not subscription_type:
+        return jsonify({"success": False, "error": "Missing required data"}), 400
+    
+    try:
+        # Get current client data
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        # Calculate new next payment date based on current next_payment_date
+        current_next_payment = datetime.strptime(client.get("next_payment_date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d")
+        
+        if subscription_type == "monthly":
+            new_next_payment = current_next_payment + timedelta(days=30)
+        else:  # yearly
+            new_next_payment = current_next_payment + timedelta(days=365)
+        
+        formatted_new_payment = new_next_payment.strftime("%Y-%m-%d")
+        
+        # Update the client's next payment date
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {"next_payment_date": formatted_new_payment}}
+        )
+        
+        # Send WhatsApp confirmation message
+        client_name = client.get("full_name", "Unknown")
+        msg = (
+            f"✅ Payment Confirmed!\n"
+            f"👤 Client: {client_name}\n"
+            f"📅 Next Payment: {formatted_new_payment}\n"
+            f"💰 Subscription: {subscription_type.capitalize()}"
+        )
+        send_whatsapp_message(msg)
+        
+        return jsonify({"success": True, "message": "Payment confirmed and next payment date updated"}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @routes.route("/update_payment_method/<client_id>", methods=["POST"])
 def update_payment_method(client_id):
@@ -284,14 +364,65 @@ def update_payment_method(client_id):
 
 @routes.route("/check_payment_reminders")
 def check_payment_reminders():
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    clients = list(clients_collection.find({"next_payment_date": today_str}))
-
-    for c in clients:
+    today = datetime.now()
+    
+    # Check for clients whose payment is due in 2 days
+    two_days_from_now = today + timedelta(days=2)
+    two_days_str = two_days_from_now.strftime("%Y-%m-%d")
+    
+    clients_due_soon = list(clients_collection.find({"next_payment_date": two_days_str}))
+    
+    # Also check for overdue payments
+    today_str = today.strftime("%Y-%m-%d")
+    overdue_clients = list(clients_collection.find({"next_payment_date": {"$lt": today_str}}))
+    
+    total_reminders = 0
+    
+    # Send reminders for payments due in 2 days
+    for c in clients_due_soon:
         name = c.get("full_name", "Unknown")
         phone = c.get("phone", "Unknown")
-        payment_method = c.get("payment_method", "Unknown")
-        msg = f"💰 Payment Reminder\nClient: {name}\nPhone: {phone}\nMethod: {payment_method}\nPlease proceed with the payment today."
+        subscription_type = c.get("subscription_type", "Unknown")
+        next_payment = c.get("next_payment_date", "Unknown")
+        
+        msg = (
+            f"⚠️ Payment Due Soon!\n"
+            f"👤 Client: {name}\n"
+            f"📱 Phone: {phone}\n"
+            f"💰 Subscription: {subscription_type.capitalize()}\n"
+            f"📅 Due Date: {next_payment}\n"
+            f"⏰ Payment is due in 2 days!"
+        )
         send_whatsapp_message(msg)
+        total_reminders += 1
+    
+    # Send reminders for overdue payments
+    for c in overdue_clients:
+        name = c.get("full_name", "Unknown")
+        phone = c.get("phone", "Unknown")
+        subscription_type = c.get("subscription_type", "Unknown")
+        next_payment = c.get("next_payment_date", "Unknown")
+        
+        days_overdue = (today - datetime.strptime(next_payment, "%Y-%m-%d")).days
+        
+        msg = (
+            f"🚨 PAYMENT OVERDUE!\n"
+            f"👤 Client: {name}\n"
+            f"📱 Phone: {phone}\n"
+            f"💰 Subscription: {subscription_type.capitalize()}\n"
+            f"📅 Due Date: {next_payment}\n"
+            f"⏰ Overdue by: {days_overdue} day(s)"
+        )
+        send_whatsapp_message(msg)
+        total_reminders += 1
+    
+    return jsonify({
+        "message": f"✅ {total_reminders} reminder(s) sent.",
+        "due_soon": len(clients_due_soon),
+        "overdue": len(overdue_clients)
+    })
 
-    return jsonify({"message": f"✅ {len(clients)} reminder(s) sent."})
+@routes.route("/send_payment_reminders")
+def send_payment_reminders():
+    """Manual trigger for payment reminders (for testing)"""
+    return check_payment_reminders()

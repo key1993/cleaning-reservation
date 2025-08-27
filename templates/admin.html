@@ -67,6 +67,59 @@
     .status-confirmed { color: green; }
     .status-canceled { color: red; }
     .status-done { color: blue; }
+    .payment-due {
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+    }
+    .payment-overdue {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+    }
+    .payment-checkbox {
+      transform: scale(1.5);
+      margin: 0;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 500px;
+      border-radius: 5px;
+    }
+    .modal-buttons {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .modal-buttons button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+    .btn-confirm {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 3px;
+    }
+    .btn-cancel {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 3px;
+    }
   </style>
 </head>
 <body>
@@ -82,6 +135,7 @@
   <div class="tab-buttons">
     <button onclick="showTab('reservations')">Reservations</button>
     <button onclick="showTab('clients')">Clients</button>
+    <button onclick="sendPaymentReminders()" style="background-color: #ffc107; color: #000;">Send Payment Reminders</button>
   </div>
 
   <!-- Reservation Tab -->
@@ -160,9 +214,9 @@
         <th>Full Name</th>
         <th>Signup Date</th>
         <th>Phone</th>
-        <th>Payment Method</th>
-        <th>Next Payment</th>
         <th>Subscription</th>
+        <th>Next Payment</th>
+        <th>Payment Due</th>
         <th>Location</th>
         <th>System Type</th>
         <th>HA URL</th>
@@ -170,28 +224,29 @@
         <th>Actions</th>
       </tr>
       {% for c in clients %}
-      <tr>
+      {% set days_until_payment = ((c.next_payment_date|string|strptime('%Y-%m-%d') - now|string|strptime('%Y-%m-%d')).days) if c.next_payment_date and now else 999 %}
+      {% set row_class = 'payment-overdue' if days_until_payment < 0 else 'payment-due' if days_until_payment <= 2 else '' %}
+      <tr class="{{ row_class }}">
         <td>{{ loop.index }}</td>
         <td>{{ c.full_name }}</td>
         <td>{{ c.signup_date }}</td>
         <td>{{ c.phone }}</td>
         <td>
-          <form method="POST" action="/update_payment_method/{{ c._id }}" class="inline-form">
-            <select name="payment_method" onchange="this.form.submit()">
-              <option value="monthly" {% if c.payment_method == 'monthly' %}selected{% endif %}>Monthly</option>
-              <option value="yearly" {% if c.payment_method == 'yearly' %}selected{% endif %}>Yearly</option>
+          <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">
+            <select name="subscription_type" onchange="this.form.submit()">
+              <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
+              <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
             </select>
           </form>
         </td>
         <td>{{ c.next_payment_date }}</td>
         <td>
-          <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">
-            <select name="subscription_type">
-              <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
-              <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
-            </select>
-            <button type="submit">Update</button>
-          </form>
+          {% if days_until_payment <= 2 %}
+            <input type="checkbox" class="payment-checkbox" onchange="confirmPayment('{{ c._id }}', '{{ c.full_name }}', '{{ c.subscription_type }}', this.checked)">
+            <br><small>Confirm Payment</small>
+          {% else %}
+            <span style="color: #666;">Not due yet</span>
+          {% endif %}
         </td>
         <td>
           {% set parts = c.location.split(',') %}
@@ -216,13 +271,102 @@
     </table>
   </div>
 
-  <!-- JavaScript for Tabs -->
+  <!-- Payment Confirmation Modal -->
+  <div id="paymentModal" class="modal">
+    <div class="modal-content">
+      <h3>Confirm Payment</h3>
+      <p id="modalMessage"></p>
+      <div class="modal-buttons">
+        <button class="btn-confirm" onclick="processPayment()">Yes, Confirm Payment</button>
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript for Tabs and Payment -->
   <script>
+    let currentPaymentData = null;
+
     function showTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
       });
       document.getElementById(tabId).classList.add('active');
+    }
+
+    function confirmPayment(clientId, clientName, subscriptionType, isChecked) {
+      if (!isChecked) return;
+      
+      const subscriptionText = subscriptionType === 'monthly' ? 'monthly' : 'yearly';
+      currentPaymentData = {
+        clientId: clientId,
+        clientName: clientName,
+        subscriptionType: subscriptionType
+      };
+      
+      document.getElementById('modalMessage').innerHTML = 
+        `Are you sure that <strong>${clientName}</strong> has paid their ${subscriptionText} subscription?<br><br>
+         This will update their next payment date automatically.`;
+      
+      document.getElementById('paymentModal').style.display = 'block';
+    }
+
+    function processPayment() {
+      if (!currentPaymentData) return;
+      
+      fetch('/confirm_payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(currentPaymentData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('Payment confirmed! Next payment date updated.');
+          location.reload();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Error processing payment confirmation');
+      });
+      
+      closeModal();
+    }
+
+    function closeModal() {
+      document.getElementById('paymentModal').style.display = 'none';
+      currentPaymentData = null;
+      
+      // Uncheck the checkbox
+      const checkboxes = document.querySelectorAll('.payment-checkbox:checked');
+      checkboxes.forEach(cb => cb.checked = false);
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('paymentModal');
+      if (event.target == modal) {
+        closeModal();
+      }
+    }
+
+    function sendPaymentReminders() {
+      if (confirm('Send payment reminders to all clients whose payments are due soon or overdue?')) {
+        fetch('/send_payment_reminders')
+          .then(response => response.json())
+          .then(data => {
+            alert(data.message);
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error sending payment reminders');
+          });
+      }
     }
   </script>
 </body>
