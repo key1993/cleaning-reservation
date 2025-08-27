@@ -66,7 +66,8 @@ def create_reservation():
 
     msg = (
         f"📢 New Enquiry!\n"
-        f"👤 {data.get('user_id', 'Unknown')}\n"
+        f"👤 Name: {data.get('name', 'Unknown')}\n"
+        f"🆔 User: {data.get('user_id', 'Unknown')}\n"
         f"📅 {data.get('date', 'N/A')} at {data.get('time_slot', 'N/A')}\n"
         f"📍 {data.get('longitude', 'N/A')}, {data.get('latitude', 'N/A')} – Panels: {data.get('number_of_panels', 'N/A')}"
     )
@@ -113,7 +114,8 @@ def delete_reservation(id):
 
         msg = (
             f"❌ Reservation Deleted:\n"
-            f"👤 User: {reservation.get('user_id', 'Unknown')}\n"
+            f"👤 Name: {reservation.get('name', 'Unknown')}\n"
+            f"🆔 User: {reservation.get('user_id', 'Unknown')}\n"
             f"📅 Date: {reservation.get('date', 'N/A')} at {reservation.get('time_slot', 'N/A')}\n"
             f"📍 {reservation.get('longitude', 'N/A')}, {reservation.get('latitude', 'N/A')} – Panels: {reservation.get('number_of_panels', 'N/A')}"
         )
@@ -181,7 +183,8 @@ def approve_reservation(id):
 
         msg = (
             f"✅ Reservation Confirmed!\n"
-            f"👤 {reservation.get('user_id', 'Unknown')}\n"
+            f"👤 Name: {reservation.get('name', 'Unknown')}\n"
+            f"🆔 User: {reservation.get('user_id', 'Unknown')}\n"
             f"📅 Date: {reservation.get('date', 'N/A')} at {reservation.get('time_slot', 'N/A')}\n"
         )
         send_whatsapp_message(msg)

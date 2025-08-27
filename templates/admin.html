@@ -142,22 +142,24 @@
       <div id="reservations" class="tab-content active">
         <h2>Cleaning Reservations</h2>
         <table>
-          <tr>
-            <th>ID</th>
-            <th>User ID</th>
-            <th>Date</th>
-            <th>Time Slot</th>
-            <th>Location</th>
-            <th>Panels</th>
-            <th>Status</th>
-            <th>Cost (JOD)</th>
-            <th>Actions</th>
-          </tr>
-          {% for r in reservations %}
-          <tr>
-            <td class="id-cell">{{ r._id }}</td>
-            <td>{{ r.user_id }}</td>
-            <td>{{ r.date }}</td>
+                <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>User ID</th>
+        <th>Date</th>
+        <th>Time Slot</th>
+        <th>Location</th>
+        <th>Panels</th>
+        <th>Status</th>
+        <th>Cost (JOD)</th>
+        <th>Actions</th>
+      </tr>
+                {% for r in reservations %}
+      <tr>
+        <td class="id-cell">{{ r._id }}</td>
+        <td>{{ r.name }}</td>
+        <td>{{ r.user_id }}</td>
+        <td>{{ r.date }}</td>
             <td>{{ r.time_slot }}</td>
             <td>
               {% if r.latitude and r.longitude %}
