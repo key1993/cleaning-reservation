@@ -38,6 +38,10 @@ def send_whatsapp_message(message):
 def home():
     return render_template("index.html")
 
+@routes.route("/test")
+def test():
+    return "Application is working! Database status: " + ("Connected" if reservations_collection is not None else "Not Connected")
+
 @routes.route("/reservations", methods=["POST"])
 @login_required
 def create_reservation():
@@ -254,10 +258,16 @@ def show_clients():
 
 @routes.route("/admin")
 def admin_panel():
-    reservations = list(reservations_collection.find())
-    clients = list(clients_collection.find())
-    now = datetime.now().strftime("%Y-%m-%d")
-    return render_template("admin.html", reservations=reservations, clients=clients, now=now)
+    try:
+        if reservations_collection is None or clients_collection is None:
+            return render_template("error.html", error_message="Database connection error. Please check your MongoDB connection."), 500
+        
+        reservations = list(reservations_collection.find())
+        clients = list(clients_collection.find())
+        return render_template("admin.html", reservations=reservations, clients=clients)
+    except Exception as e:
+        print(f"Error in admin panel: {e}")
+        return render_template("error.html", error_message=f"Error loading admin panel: {str(e)}"), 500
 @routes.route("/delete_client/<id>", methods=["POST"])
 def delete_client(id):
     try:
