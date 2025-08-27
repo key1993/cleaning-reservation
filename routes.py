@@ -43,11 +43,12 @@ def test():
     return "Application is working! Database status: " + ("Connected" if reservations_collection is not None else "Not Connected")
 
 @routes.route("/reservations", methods=["POST"])
+@login_required
 def create_reservation():
     data = request.json
     
-    # Set user_id as "Guest" if not logged in, or use session user_id if available
-    data["user_id"] = session.get("user_id", "Guest")
+    # Automatically set user_id from session
+    data["user_id"] = session.get("user_id")
     
     is_valid, msg = validate_reservation(data)
     if not is_valid:

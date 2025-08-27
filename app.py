@@ -1,7 +1,6 @@
 from flask import Flask
 from routes import routes
 from admin import admin
-from auth import auth
 import os
 from pymongo import MongoClient
 from db import db  # and optionally, reservations_collection if needed
@@ -16,12 +15,10 @@ db = client.get_database("cleaning_reservation")
 # Pass `db` to routes and admin
 routes.db = db
 admin.db = db
-auth.db = db
 
 # Register blueprints
 app.register_blueprint(routes)
 app.register_blueprint(admin)
-app.register_blueprint(auth)
 
 app.secret_key = "supersecretkey"
 
