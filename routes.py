@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, redirect, render_template
+from flask import Blueprint, request, jsonify, redirect, render_template, session
 from db import reservations_collection, clients_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
@@ -7,6 +7,16 @@ import requests
 import urllib.parse
 import os
 from datetime import datetime, timedelta
+
+def login_required(f):
+    """Decorator to require user login for protected routes"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('user_id'):
+            return jsonify({"error": "Login required"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
 
 clients_collection = db['clients']
 
@@ -24,9 +34,18 @@ def send_whatsapp_message(message):
     except Exception as e:
         print("❌ WhatsApp failed:", e)
 
+@routes.route("/")
+def home():
+    return render_template("index.html")
+
 @routes.route("/reservations", methods=["POST"])
+@login_required
 def create_reservation():
     data = request.json
+    
+    # Automatically set user_id from session
+    data["user_id"] = session.get("user_id")
+    
     is_valid, msg = validate_reservation(data)
     if not is_valid:
         return jsonify({"error": msg}), 400
@@ -192,6 +211,15 @@ def deny_reservation(id):
 
     except Exception as e:
         return jsonify({"error": "Invalid ID"}), 400
+
+@routes.route("/my_reservations")
+@login_required
+def my_reservations():
+    user_id = session.get("user_id")
+    reservations = list(reservations_collection.find({"user_id": user_id}))
+    for r in reservations:
+        r["_id"] = str(r["_id"])
+    return jsonify(reservations)
 
 @routes.route("/register_client", methods=["POST"])
 def register_client():

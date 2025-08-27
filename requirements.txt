@@ -2,3 +2,5 @@ flask
 pymongo
 dnspython
 requests
+werkzeug
+flask-login
