@@ -138,8 +138,4 @@ def change_password():
         {"$set": {"password": generate_password_hash(new_password)}}
     )
     
-<<<<<<< HEAD
     return jsonify({"message": "Password changed successfully"}), 200
-=======
-    return jsonify({"message": "Password changed successfully"}), 200
->>>>>>> eec23ee40de0f1d448a53056e1bb99fae3d5bbaf
