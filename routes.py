@@ -46,8 +46,9 @@ def test():
 def create_reservation():
     data = request.json
     
-    # Set user_id as "Guest" if not logged in, or use session user_id if available
-    data["user_id"] = session.get("user_id", "Guest")
+    # Use user_id from request data if provided, otherwise use session or default to "Guest"
+    if "user_id" not in data:
+        data["user_id"] = session.get("user_id", "Guest")
     
     is_valid, msg = validate_reservation(data)
     if not is_valid:
