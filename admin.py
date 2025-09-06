@@ -4,11 +4,11 @@ from bson import ObjectId
 
 admin = Blueprint("admin", __name__)
 
-@admin.route("/login", methods=["GET", "POST"])
-def login():
+@admin.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
     if request.method == "POST":
         if request.form["username"] == "admin" and request.form["password"] == "admin":
-            session["logged_in"] = True
+            session["admin_logged_in"] = True
             return redirect("/admin")
         else:
             return "❌ Invalid credentials", 403
@@ -23,11 +23,11 @@ def login():
 
 @admin.route("/admin")
 def admin_dashboard():
-    if not session.get("logged_in"):
-        return redirect(url_for("admin.login"))
+    if not session.get("admin_logged_in"):
+        return redirect("/admin/login")
 
     # Clear session every time to force re-login
-    session.pop("logged_in", None)
+    session.pop("admin_logged_in", None)
 
     try:
         reservations = list(reservations_collection.find().sort("date", 1))
@@ -41,8 +41,8 @@ def admin_dashboard():
 
 @admin.route("/update_status", methods=["POST"])
 def update_status():
-    if not session.get("logged_in"):
-        return redirect(url_for("admin.login"))
+    if not session.get("admin_logged_in"):
+        return redirect("/admin/login")
 
     reservation_id = request.form["reservation_id"]
     new_status = request.form["status"]

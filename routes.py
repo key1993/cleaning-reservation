@@ -256,18 +256,6 @@ def show_clients():
     return render_template('clients.html', clients=clients)
 
 
-@routes.route("/admin")
-def admin_panel():
-    try:
-        if reservations_collection is None or clients_collection is None:
-            return render_template("error.html", error_message="Database connection error. Please check your MongoDB connection."), 500
-        
-        reservations = list(reservations_collection.find())
-        clients = list(clients_collection.find())
-        return render_template("admin.html", reservations=reservations, clients=clients)
-    except Exception as e:
-        print(f"Error in admin panel: {e}")
-        return render_template("error.html", error_message=f"Error loading admin panel: {str(e)}"), 500
 @routes.route("/delete_client/<id>", methods=["POST"])
 def delete_client(id):
     try:
