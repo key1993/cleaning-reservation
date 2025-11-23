@@ -372,8 +372,12 @@ def update_payment_method(client_id):
     )
     return redirect("/admin")
 
-@routes.route("/check_payment_reminders")
-def check_payment_reminders():
+def process_payment_reminders():
+    """
+    Core function to check and send payment reminders.
+    Can be called by scheduler or manually via route.
+    Returns a dict with results.
+    """
     today = datetime.now()
     
     # Check for clients whose payment is due in 2 days
@@ -426,11 +430,18 @@ def check_payment_reminders():
         send_whatsapp_message(msg)
         total_reminders += 1
     
-    return jsonify({
+    return {
         "message": f"✅ {total_reminders} reminder(s) sent.",
         "due_soon": len(clients_due_soon),
-        "overdue": len(overdue_clients)
-    })
+        "overdue": len(overdue_clients),
+        "total": total_reminders
+    }
+
+@routes.route("/check_payment_reminders")
+def check_payment_reminders():
+    """Route endpoint for checking payment reminders (manual trigger)"""
+    result = process_payment_reminders()
+    return jsonify(result)
 
 @routes.route("/send_payment_reminders")
 def send_payment_reminders():
