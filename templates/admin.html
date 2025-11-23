@@ -140,8 +140,17 @@
       <!-- Reservation Tab -->
       <div id="reservations" class="tab-content active">
         <h2>Cleaning Reservations</h2>
+        <div style="margin-bottom: 10px;">
+          <button onclick="deleteSelectedReservations()" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; font-size: 14px;">
+            Delete Selected Reservations
+          </button>
+          <span id="selectedReservationsCount" style="margin-left: 10px; color: #666;"></span>
+        </div>
         <table>
                                  <tr>
+         <th>
+              <input type="checkbox" id="selectAllReservations" onchange="toggleSelectAllReservations(this)">
+            </th>
          <th>ID</th>
          <th>User ID</th>
          <th>Date</th>
@@ -154,6 +163,9 @@
        </tr>
                 {% for r in reservations %}
              <tr>
+         <td>
+              <input type="checkbox" class="reservation-checkbox" value="{{ r._id }}" onchange="updateSelectedReservationsCount()">
+            </td>
          <td class="id-cell">{{ r._id }}</td>
          <td>{{ r.user_id }}</td>
          <td>{{ r.date }}</td>
@@ -429,6 +441,74 @@
           .catch(error => {
             console.error('Error:', error);
             alert('Error deleting clients');
+          });
+        }
+
+        // Bulk reservation deletion functions
+        function toggleSelectAllReservations(selectAllCheckbox) {
+          const checkboxes = document.querySelectorAll('.reservation-checkbox');
+          checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+          });
+          updateSelectedReservationsCount();
+        }
+
+        function updateSelectedReservationsCount() {
+          const checkedBoxes = document.querySelectorAll('.reservation-checkbox:checked');
+          const count = checkedBoxes.length;
+          const countSpan = document.getElementById('selectedReservationsCount');
+          
+          if (count > 0) {
+            countSpan.textContent = `${count} reservation(s) selected`;
+            countSpan.style.color = '#dc3545';
+            countSpan.style.fontWeight = 'bold';
+          } else {
+            countSpan.textContent = '';
+          }
+          
+          // Update select all checkbox state
+          const allCheckboxes = document.querySelectorAll('.reservation-checkbox');
+          const selectAllCheckbox = document.getElementById('selectAllReservations');
+          if (allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+          }
+        }
+
+        function deleteSelectedReservations() {
+          const checkedBoxes = document.querySelectorAll('.reservation-checkbox:checked');
+          
+          if (checkedBoxes.length === 0) {
+            alert('Please select at least one reservation to delete.');
+            return;
+          }
+          
+          const reservationIds = Array.from(checkedBoxes).map(cb => cb.value);
+          const count = reservationIds.length;
+          
+          if (!confirm(`Are you sure you want to delete ${count} selected reservation(s)? This action cannot be undone.`)) {
+            return;
+          }
+          
+          // Send bulk delete request
+          fetch('/delete_reservations_bulk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ reservation_ids: reservationIds })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting reservations');
           });
         }
 

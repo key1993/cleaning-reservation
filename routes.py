@@ -125,6 +125,42 @@ def delete_reservation(id):
     except Exception as e:
         return jsonify({"error": "Invalid reservation ID"}), 400
 
+@routes.route("/delete_reservations_bulk", methods=["POST"])
+def delete_reservations_bulk():
+    """Delete multiple reservations at once"""
+    try:
+        data = request.json
+        reservation_ids = data.get("reservation_ids", [])
+        
+        if not reservation_ids:
+            return jsonify({"success": False, "error": "No reservations selected"}), 400
+        
+        # Convert string IDs to ObjectId
+        object_ids = [ObjectId(reservation_id) for reservation_id in reservation_ids]
+        
+        # Get reservations for WhatsApp messages
+        reservations_to_delete = list(reservations_collection.find({"_id": {"$in": object_ids}}))
+        
+        # Delete all selected reservations
+        result = reservations_collection.delete_many({"_id": {"$in": object_ids}})
+        
+        # Send WhatsApp notification for bulk deletion
+        if reservations_to_delete:
+            msg = (
+                f"❌ Bulk Reservation Deletion:\n"
+                f"🗑️ {result.deleted_count} reservation(s) deleted\n"
+                f"📋 Details: {len(reservations_to_delete)} reservation(s) removed"
+            )
+            send_whatsapp_message(msg)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted {result.deleted_count} reservation(s)"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes.route('/update_cost', methods=['POST'])
 def update_cost():
     reservation_id = request.form['reservation_id']
