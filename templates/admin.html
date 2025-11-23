@@ -135,7 +135,6 @@
       <div class="tab-buttons">
         <button onclick="showTab('reservations')">Reservations</button>
         <button onclick="showTab('clients')">Clients</button>
-        <button onclick="sendPaymentReminders()" style="background-color: #ffc107; color: #000;">Send Payment Reminders</button>
       </div>
 
       <!-- Reservation Tab -->
@@ -353,19 +352,6 @@
           }
         }
 
-        function sendPaymentReminders() {
-          if (confirm('Send payment reminders to all clients whose payments are due soon or overdue?')) {
-            fetch('/send_payment_reminders')
-              .then(response => response.json())
-              .then(data => {
-                alert(data.message);
-              })
-              .catch(error => {
-                console.error('Error:', error);
-                alert('Error sending payment reminders');
-              });
-          }
-        }
       </script>
     </body>
     </html>
