@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, render_template, sessio
 from db import reservations_collection, clients_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
+from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email
 
 import requests
 import urllib.parse
@@ -401,6 +402,15 @@ def confirm_payment():
             {"$set": {"next_payment_date": formatted_new_payment}}
         )
         
+        # Re-enable Firebase account if it was disabled
+        firebase_uid = client.get("firebase_uid")
+        if firebase_uid and client.get("account_disabled", False):
+            if enable_firebase_user(firebase_uid):
+                clients_collection.update_one(
+                    {"_id": ObjectId(client_id)},
+                    {"$set": {"account_disabled": False}, "$unset": {"account_disabled_date": ""}}
+                )
+        
         # Send WhatsApp confirmation message
         client_name = client.get("full_name", "Unknown")
         msg = (
@@ -470,12 +480,14 @@ def process_payment_reminders():
         send_whatsapp_message(msg)
         total_reminders += 1
     
-    # Send reminders for overdue payments
+    # Send reminders for overdue payments and disable Firebase accounts
+    disabled_count = 0
     for c in overdue_clients:
         name = c.get("full_name", "Unknown")
         phone = c.get("phone", "Unknown")
         subscription_type = c.get("subscription_type", "Unknown")
         next_payment = c.get("next_payment_date", "Unknown")
+        firebase_uid = c.get("firebase_uid")
         
         days_overdue = (today - datetime.strptime(next_payment, "%Y-%m-%d")).days
         
@@ -489,12 +501,33 @@ def process_payment_reminders():
         )
         send_whatsapp_message(msg)
         total_reminders += 1
+        
+        # Disable Firebase account if payment is overdue and Firebase UID exists
+        if firebase_uid and days_overdue > 0:
+            # Only disable if not already marked as disabled in our system
+            if not c.get("account_disabled", False):
+                if disable_firebase_user(firebase_uid):
+                    # Mark account as disabled in MongoDB
+                    clients_collection.update_one(
+                        {"_id": c["_id"]},
+                        {"$set": {"account_disabled": True, "account_disabled_date": today.strftime("%Y-%m-%d")}}
+                    )
+                    disabled_count += 1
+                    msg_disabled = (
+                        f"🔒 Account Disabled!\n"
+                        f"👤 Client: {name}\n"
+                        f"📱 Phone: {phone}\n"
+                        f"⏰ Payment overdue by {days_overdue} day(s)\n"
+                        f"🔐 Firebase account has been disabled"
+                    )
+                    send_whatsapp_message(msg_disabled)
     
     return {
-        "message": f"✅ {total_reminders} reminder(s) sent.",
+        "message": f"✅ {total_reminders} reminder(s) sent. {disabled_count} account(s) disabled.",
         "due_soon": len(clients_due_soon),
         "overdue": len(overdue_clients),
-        "total": total_reminders
+        "total": total_reminders,
+        "disabled": disabled_count
     }
 
 @routes.route("/check_payment_reminders")
@@ -507,3 +540,147 @@ def check_payment_reminders():
 def send_payment_reminders():
     """Manual trigger for payment reminders (for testing)"""
     return check_payment_reminders()
+
+@routes.route("/disable_client_account/<client_id>", methods=["POST"])
+def disable_client_account(client_id):
+    """Manually disable a client's Firebase account"""
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        firebase_uid = client.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
+        
+        if disable_firebase_user(firebase_uid):
+            clients_collection.update_one(
+                {"_id": ObjectId(client_id)},
+                {"$set": {"account_disabled": True, "account_disabled_date": datetime.now().strftime("%Y-%m-%d")}}
+            )
+            return jsonify({"success": True, "message": "Client account disabled successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to disable Firebase account"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/enable_client_account/<client_id>", methods=["POST"])
+def enable_client_account(client_id):
+    """Manually enable a client's Firebase account"""
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        firebase_uid = client.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
+        
+        if enable_firebase_user(firebase_uid):
+            clients_collection.update_one(
+                {"_id": ObjectId(client_id)},
+                {"$set": {"account_disabled": False}, "$unset": {"account_disabled_date": ""}}
+            )
+            return jsonify({"success": True, "message": "Client account enabled successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to enable Firebase account"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/delete_client_firebase_account/<client_id>", methods=["POST"])
+def delete_client_firebase_account(client_id):
+    """Delete a client's Firebase account"""
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        firebase_uid = client.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
+        
+        if delete_firebase_user(firebase_uid):
+            # Remove Firebase UID from client record
+            clients_collection.update_one(
+                {"_id": ObjectId(client_id)},
+                {"$unset": {"firebase_uid": "", "account_disabled": "", "account_disabled_date": ""}}
+            )
+            return jsonify({"success": True, "message": "Firebase account deleted successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to delete Firebase account"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/search_firebase_user", methods=["POST"])
+def search_firebase_user():
+    """Search for Firebase user by email and link to client"""
+    try:
+        data = request.json if request.is_json else request.form
+        email = data.get("email")
+        client_id = data.get("client_id")
+        
+        if not email:
+            return jsonify({"success": False, "error": "Email is required"}), 400
+        
+        # Search for Firebase user by email
+        user = get_firebase_user_by_email(email)
+        
+        if not user:
+            return jsonify({"success": False, "error": f"No Firebase user found with email: {email}"}), 404
+        
+        # If client_id is provided, link the Firebase UID to the client
+        if client_id:
+            client = clients_collection.find_one({"_id": ObjectId(client_id)})
+            if not client:
+                return jsonify({"success": False, "error": "Client not found"}), 404
+            
+            clients_collection.update_one(
+                {"_id": ObjectId(client_id)},
+                {"$set": {"firebase_uid": user.uid}}
+            )
+            return jsonify({
+                "success": True,
+                "message": "Firebase user found and linked to client",
+                "firebase_uid": user.uid,
+                "email": user.email,
+                "disabled": user.disabled
+            }), 200
+        else:
+            # Just return the user info
+            return jsonify({
+                "success": True,
+                "firebase_uid": user.uid,
+                "email": user.email,
+                "disabled": user.disabled,
+                "display_name": user.display_name if hasattr(user, 'display_name') else None
+            }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/update_client_firebase_uid/<client_id>", methods=["POST"])
+def update_client_firebase_uid(client_id):
+    """Update or set Firebase UID for a client"""
+    try:
+        data = request.json if request.is_json else request.form
+        firebase_uid = data.get("firebase_uid")
+        
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Firebase UID is required"}), 400
+        
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {"firebase_uid": firebase_uid}}
+        )
+        
+        return jsonify({"success": True, "message": "Firebase UID updated successfully"}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

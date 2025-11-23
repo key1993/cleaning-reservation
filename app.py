@@ -7,6 +7,7 @@ from pymongo import MongoClient
 from db import db  # and optionally, reservations_collection if needed
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from firebase_service import initialize_firebase
 import atexit
 
 app = Flask(__name__)
@@ -27,6 +28,14 @@ app.register_blueprint(admin)
 app.register_blueprint(auth)
 
 app.secret_key = "supersecretkey"
+
+# Initialize Firebase Admin SDK
+try:
+    initialize_firebase()
+    print("✅ Firebase Admin SDK initialized successfully")
+except Exception as e:
+    print(f"⚠️ Firebase initialization failed: {e}")
+    print("Payment reminder system will work, but account disabling will be unavailable")
 
 # Set up automated payment reminder scheduler
 def scheduled_payment_reminders():

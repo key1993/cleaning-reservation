@@ -241,6 +241,7 @@
             <th>System Type</th>
             <th>HA URL</th>
             <th>HA Token</th>
+            <th>Account Status</th>
             <th>Actions</th>
           </tr>
           {% for c in clients %}
@@ -283,9 +284,43 @@
             <td>{{ c.ha_url }}</td>
             <td>{{ c.ha_token }}</td>
             <td>
-              <form method="POST" action="/delete_client/{{ c._id }}" class="inline-form" onsubmit="return confirm('Delete this client?');">
-                <button type="submit" style="color: red;">Delete</button>
-              </form>
+              {% if c.firebase_uid %}
+                {% if c.account_disabled %}
+                  <span style="color: red; font-weight: bold;">🔒 Disabled</span>
+                  <br><small>Since: {{ c.account_disabled_date if c.account_disabled_date else 'N/A' }}</small>
+                {% else %}
+                  <span style="color: green; font-weight: bold;">✅ Active</span>
+                {% endif %}
+                <br><small>UID: {{ c.firebase_uid[:8] }}...</small>
+              {% else %}
+                <span style="color: #666;">⚠️ No Firebase UID</span>
+                <br><button onclick="searchFirebaseUser('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #17a2b8; color: white; padding: 3px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px;">
+                  Link by Email
+                </button>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                {% if c.firebase_uid %}
+                  {% if c.account_disabled %}
+                    <button onclick="enableAccount('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
+                      ✅ Enable Account
+                    </button>
+                  {% else %}
+                    <button onclick="disableAccount('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #ffc107; color: #000; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
+                      🔒 Disable Account
+                    </button>
+                  {% endif %}
+                  <button onclick="deleteFirebaseAccount('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
+                    🗑️ Delete Firebase Account
+                  </button>
+                {% endif %}
+                <form method="POST" action="/delete_client/{{ c._id }}" class="inline-form" onsubmit="return confirm('Delete this client?');">
+                  <button type="submit" style="background-color: #6c757d; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; width: 100%;">
+                    Delete Client
+                  </button>
+                </form>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -509,6 +544,121 @@
           .catch(error => {
             console.error('Error:', error);
             alert('Error deleting reservations');
+          });
+        }
+
+        // Firebase account management functions
+        function disableAccount(clientId, clientName) {
+          if (!confirm(`Are you sure you want to disable the Firebase account for ${clientName}?`)) {
+            return;
+          }
+          
+          fetch(`/disable_client_account/${clientId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error disabling account');
+          });
+        }
+
+        function enableAccount(clientId, clientName) {
+          if (!confirm(`Are you sure you want to enable the Firebase account for ${clientName}?`)) {
+            return;
+          }
+          
+          fetch(`/enable_client_account/${clientId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error enabling account');
+          });
+        }
+
+        function deleteFirebaseAccount(clientId, clientName) {
+          if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+            return;
+          }
+          
+          fetch(`/delete_client_firebase_account/${clientId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting Firebase account');
+          });
+        }
+
+        function searchFirebaseUser(clientId, clientName) {
+          const email = prompt(`Enter the email address for ${clientName} to search in Firebase:`);
+          
+          if (!email) {
+            return;
+          }
+          
+          if (!confirm(`Search for Firebase user with email: ${email} and link to ${clientName}?`)) {
+            return;
+          }
+          
+          fetch('/search_firebase_user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: email,
+              client_id: clientId
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(`✅ Firebase user found!\n\nEmail: ${data.email}\nUID: ${data.firebase_uid}\nStatus: ${data.disabled ? 'Disabled' : 'Active'}\n\nAccount linked successfully!`);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error searching for Firebase user');
           });
         }
 
