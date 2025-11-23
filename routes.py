@@ -276,6 +276,30 @@ def delete_client(id):
     except Exception:
         return jsonify({"error": "Failed to delete client"}), 400
 
+@routes.route("/delete_clients_bulk", methods=["POST"])
+def delete_clients_bulk():
+    """Delete multiple clients at once"""
+    try:
+        data = request.json
+        client_ids = data.get("client_ids", [])
+        
+        if not client_ids:
+            return jsonify({"success": False, "error": "No clients selected"}), 400
+        
+        # Convert string IDs to ObjectId
+        object_ids = [ObjectId(client_id) for client_id in client_ids]
+        
+        # Delete all selected clients
+        result = clients_collection.delete_many({"_id": {"$in": object_ids}})
+        
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted {result.deleted_count} client(s)"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes.route("/update_subscription/<id>", methods=["POST"])
 def update_subscription(id):
     new_type = request.form.get("subscription_type")

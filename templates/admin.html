@@ -207,8 +207,17 @@
       <!-- Clients Tab -->
       <div id="clients" class="tab-content">
         <h2>Registered Clients (Total: {{ clients|length }})</h2>
+        <div style="margin-bottom: 10px;">
+          <button onclick="deleteSelectedClients()" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; font-size: 14px;">
+            Delete Selected Clients
+          </button>
+          <span id="selectedCount" style="margin-left: 10px; color: #666;"></span>
+        </div>
         <table>
           <tr>
+            <th>
+              <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
+            </th>
             <th>#</th>
             <th>Full Name</th>
             <th>Signup Date</th>
@@ -224,6 +233,9 @@
           </tr>
           {% for c in clients %}
           <tr>
+            <td>
+              <input type="checkbox" class="client-checkbox" value="{{ c._id }}" onchange="updateSelectedCount()">
+            </td>
             <td>{{ loop.index }}</td>
             <td>{{ c.full_name }}</td>
             <td>{{ c.signup_date }}</td>
@@ -350,6 +362,74 @@
           if (event.target == modal) {
             closeModal();
           }
+        }
+
+        // Bulk client deletion functions
+        function toggleSelectAll(selectAllCheckbox) {
+          const checkboxes = document.querySelectorAll('.client-checkbox');
+          checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+          });
+          updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+          const checkedBoxes = document.querySelectorAll('.client-checkbox:checked');
+          const count = checkedBoxes.length;
+          const countSpan = document.getElementById('selectedCount');
+          
+          if (count > 0) {
+            countSpan.textContent = `${count} client(s) selected`;
+            countSpan.style.color = '#dc3545';
+            countSpan.style.fontWeight = 'bold';
+          } else {
+            countSpan.textContent = '';
+          }
+          
+          // Update select all checkbox state
+          const allCheckboxes = document.querySelectorAll('.client-checkbox');
+          const selectAllCheckbox = document.getElementById('selectAll');
+          if (allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+          }
+        }
+
+        function deleteSelectedClients() {
+          const checkedBoxes = document.querySelectorAll('.client-checkbox:checked');
+          
+          if (checkedBoxes.length === 0) {
+            alert('Please select at least one client to delete.');
+            return;
+          }
+          
+          const clientIds = Array.from(checkedBoxes).map(cb => cb.value);
+          const count = clientIds.length;
+          
+          if (!confirm(`Are you sure you want to delete ${count} selected client(s)? This action cannot be undone.`)) {
+            return;
+          }
+          
+          // Send bulk delete request
+          fetch('/delete_clients_bulk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ client_ids: clientIds })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting clients');
+          });
         }
 
       </script>
