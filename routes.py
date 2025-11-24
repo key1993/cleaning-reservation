@@ -265,7 +265,7 @@ def my_reservations():
 @routes.route("/register_client", methods=["POST"])
 def register_client():
     data = request.json
-    required_fields = ["full_name", "signup_date", "phone", "location", "system_type", "ha_url", "ha_token", "subscription_type"]
+    required_fields = ["full_name", "signup_date", "phone", "email", "location", "system_type", "ha_url", "ha_token", "subscription_type"]
 
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields"}), 400
@@ -283,6 +283,18 @@ def register_client():
     data["subscription_type"] = subscription_type
 
     clients_collection.insert_one(data)
+
+    # Notify via WhatsApp about the new client registration
+    client_name = data.get("full_name", "Unknown")
+    client_email = data.get("email", "Unknown")
+    system_type = data.get("system_type", "Unknown")
+    msg = (
+        f"🆕 New Client Registered!\n"
+        f"👤 Name: {client_name}\n"
+        f"📧 Email: {client_email}\n"
+        f"⚙️ System: {system_type.capitalize() if isinstance(system_type, str) else system_type}"
+    )
+    send_whatsapp_message(msg)
 
     return jsonify({"message": "Client registered successfully"}), 200
 

@@ -234,6 +234,7 @@
             <th>Full Name</th>
             <th>Signup Date</th>
             <th>Phone</th>
+            <th>Email</th>
             <th>Subscription</th>
             <th>Next Payment</th>
             <th>Payment Due</th>
@@ -253,6 +254,7 @@
             <td>{{ c.full_name }}</td>
             <td>{{ c.signup_date }}</td>
             <td>{{ c.phone }}</td>
+            <td>{{ c.email or 'N/A' }}</td>
             <td>
               <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">
                 <select name="subscription_type" onchange="this.form.submit()">
