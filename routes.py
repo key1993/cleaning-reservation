@@ -282,6 +282,14 @@ def register_client():
     data["next_payment_date"] = next_payment_date.strftime("%Y-%m-%d")
     data["subscription_type"] = subscription_type
 
+    # Verify email against Firebase and capture UID
+    firebase_user = get_firebase_user_by_email(data["email"])
+    if not firebase_user:
+        return jsonify({"error": f"No Firebase user found with email {data['email']}"}), 404
+
+    data["email"] = firebase_user.email
+    data["firebase_uid"] = firebase_user.uid
+
     clients_collection.insert_one(data)
 
     # Notify via WhatsApp about the new client registration
