@@ -282,13 +282,13 @@ def register_client():
     data["next_payment_date"] = next_payment_date.strftime("%Y-%m-%d")
     data["subscription_type"] = subscription_type
 
-    # Verify email against Firebase and capture UID
+    # Try to match email with Firebase user, but don't block registration if not found
     firebase_user = get_firebase_user_by_email(data["email"])
-    if not firebase_user:
-        return jsonify({"error": f"No Firebase user found with email {data['email']}"}), 404
-
-    data["email"] = firebase_user.email
-    data["firebase_uid"] = firebase_user.uid
+    if firebase_user:
+        data["email"] = firebase_user.email
+        data["firebase_uid"] = firebase_user.uid
+    else:
+        data["firebase_uid"] = None
 
     clients_collection.insert_one(data)
 
