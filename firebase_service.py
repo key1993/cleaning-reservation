@@ -174,16 +174,37 @@ def get_firebase_user_by_email(email):
             initialize_firebase()
         
         if firebase_app is None:
+            print("❌ Firebase not initialized. Cannot search for user.")
             return None
         
-        user = auth.get_user_by_email(email)
-        return user
+        # Normalize email: trim whitespace and convert to lowercase
+        # Firebase email lookups are case-insensitive, but we normalize for consistency
+        normalized_email = email.strip().lower()
         
-    except auth.UserNotFoundError:
-        print(f"⚠️ Firebase user with email {email} not found")
-        return None
+        print(f"🔍 Searching for Firebase user with email: {normalized_email}")
+        
+        # Try exact match first
+        try:
+            user = auth.get_user_by_email(normalized_email)
+            print(f"✅ Found Firebase user: {user.uid} ({user.email})")
+            return user
+        except auth.UserNotFoundError:
+            # Try with original case (in case Firebase stores it differently)
+            try:
+                user = auth.get_user_by_email(email.strip())
+                print(f"✅ Found Firebase user with original case: {user.uid} ({user.email})")
+                return user
+            except auth.UserNotFoundError:
+                print(f"⚠️ Firebase user with email '{email}' not found")
+                print(f"   Tried normalized: '{normalized_email}'")
+                print(f"   Tried original: '{email.strip()}'")
+                return None
+        
     except Exception as e:
-        print(f"❌ Error getting Firebase user by email {email}: {e}")
+        print(f"❌ Error getting Firebase user by email '{email}': {e}")
+        print(f"   Error type: {type(e).__name__}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return None
 
 def create_firebase_user(email, password, display_name=None, phone_number=None):

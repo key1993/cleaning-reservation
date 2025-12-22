@@ -634,11 +634,25 @@ def search_firebase_user():
         if not email:
             return jsonify({"success": False, "error": "Email is required"}), 400
         
+        # Normalize email
+        email = email.strip()
+        
+        # Check if Firebase is initialized
+        from firebase_service import firebase_app
+        if firebase_app is None:
+            return jsonify({
+                "success": False, 
+                "error": "Firebase is not initialized. Please check Firebase credentials configuration."
+            }), 500
+        
         # Search for Firebase user by email
         user = get_firebase_user_by_email(email)
         
         if not user:
-            return jsonify({"success": False, "error": f"No Firebase user found with email: {email}"}), 404
+            return jsonify({
+                "success": False, 
+                "error": f"No Firebase user found with email: {email}\n\nPlease verify:\n1. The email is correct\n2. Firebase credentials are properly configured\n3. The user exists in Firebase Authentication console"
+            }), 404
         
         # If client_id is provided, link the Firebase UID to the client
         if client_id:
@@ -693,6 +707,51 @@ def update_client_firebase_uid(client_id):
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/test_firebase_connection", methods=["GET"])
+def test_firebase_connection():
+    """Test Firebase connection and list users (for debugging)"""
+    try:
+        from firebase_service import firebase_app, auth
+        
+        if firebase_app is None:
+            return jsonify({
+                "success": False,
+                "error": "Firebase is not initialized",
+                "details": "Check FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON environment variable"
+            }), 500
+        
+        # Try to list a few users to verify connection
+        try:
+            # List users (limited to 10 for testing)
+            page = auth.list_users(max_results=10)
+            users = []
+            for user in page.users:
+                users.append({
+                    "uid": user.uid,
+                    "email": user.email,
+                    "disabled": user.disabled,
+                    "email_verified": user.email_verified
+                })
+            
+            return jsonify({
+                "success": True,
+                "message": "Firebase connection successful",
+                "users_found": len(users),
+                "users": users
+            }), 200
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Firebase connection test failed: {str(e)}",
+                "error_type": type(e).__name__
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Error testing Firebase: {str(e)}"
+        }), 500
 
 @routes.route("/reset_client_password/<client_id>", methods=["POST"])
 def reset_client_password(client_id):
