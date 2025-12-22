@@ -442,6 +442,79 @@
             gap: 5px;
         }
 
+        /* Copy Button */
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            margin-left: 5px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .copy-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .copy-btn:active {
+            transform: translateY(0);
+        }
+
+        .copy-btn.copied {
+            background: #28a745;
+        }
+
+        .token-cell {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .token-text {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 10000;
+            animation: slideInRight 0.3s ease;
+            display: none;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .container {
@@ -672,7 +745,16 @@
                                 </td>
                                 <td>{{ c.system_type }}</td>
                                 <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">{{ c.ha_url or 'N/A' }}</td>
-                                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-family: monospace; font-size: 11px;">{{ c.ha_token[:20] if c.ha_token else 'N/A' }}...</td>
+                                <td>
+                                    <div class="token-cell">
+                                        <span class="token-text">{{ c.ha_token[:20] if c.ha_token else 'N/A' }}{% if c.ha_token %}...{% endif %}</span>
+                                        {% if c.ha_token %}
+                                        <button class="copy-btn" onclick="copyToken('{{ c.ha_token }}', this)" title="Copy full token">
+                                            📋 Copy
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
                                 <td>
                                     {% if c.firebase_uid %}
                                         {% if c.account_disabled %}
@@ -1108,6 +1190,69 @@
                 alert('Error toggling external widget');
                 selectElement.value = previousValue;
             });
+        }
+
+        function copyToken(token, button) {
+            // Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = token;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
+
+            try {
+                // Copy the text
+                document.execCommand('copy');
+                
+                // Update button appearance
+                const originalText = button.innerHTML;
+                button.innerHTML = '✅ Copied!';
+                button.classList.add('copied');
+                
+                // Show toast notification
+                showToast('Token copied to clipboard!');
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy token:', err);
+                alert('Failed to copy token. Please try again.');
+            } finally {
+                // Remove the temporary element
+                document.body.removeChild(textarea);
+            }
+        }
+
+        function showToast(message) {
+            // Remove existing toast if any
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            // Create new toast
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // Show toast
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            // Hide and remove toast after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
         }
     </script>
 </body>
