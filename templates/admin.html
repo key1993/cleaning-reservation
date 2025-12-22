@@ -303,12 +303,14 @@
               {% endif %}
             </td>
             <td>
-              <input type="checkbox" class="widget-disable-checkbox" 
-                     id="widget-checkbox-{{ c._id }}"
-                     {% if c.get('external_widget_disabled') %}checked{% endif %}
-                     onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.checked, this)"
-                     style="transform: scale(1.5); margin: 0;">
-              <br><small>{% if c.get('external_widget_disabled') %}Disabled{% else %}Enabled{% endif %}</small>
+              <select class="widget-status-select" 
+                      id="widget-select-{{ c._id }}"
+                      data-previous-value="{% if c.get('external_widget_disabled') %}disabled{% else %}enabled{% endif %}"
+                      onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.value, this)"
+                      style="padding: 5px; font-size: 14px; border-radius: 3px; border: 1px solid #ccc; min-width: 120px;">
+                <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
+                <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
+              </select>
             </td>
             <td>
               <div style="display: flex; flex-direction: column; gap: 5px;">
@@ -673,14 +675,19 @@
           });
         }
 
-        function toggleExternalWidget(clientId, clientName, isDisabled, checkboxElement) {
+        function toggleExternalWidget(clientId, clientName, status, selectElement) {
+          const isDisabled = status === 'disabled';
           const action = isDisabled ? 'disable' : 'enable';
+          const previousValue = selectElement.getAttribute('data-previous-value') || (isDisabled ? 'enabled' : 'disabled');
           
           if (!confirm(`Are you sure you want to ${action} the external widget for ${clientName}?`)) {
-            // Revert checkbox state
-            checkboxElement.checked = !isDisabled;
+            // Revert dropdown to previous value
+            selectElement.value = previousValue;
             return;
           }
+          
+          // Store current value as previous value
+          selectElement.setAttribute('data-previous-value', status);
           
           fetch(`/toggle_external_widget/${clientId}`, {
             method: 'POST',
@@ -699,15 +706,15 @@
               location.reload();
             } else {
               alert('Error: ' + data.error);
-              // Revert checkbox state on error
-              checkboxElement.checked = !isDisabled;
+              // Revert dropdown to previous value on error
+              selectElement.value = previousValue;
             }
           })
           .catch(error => {
             console.error('Error:', error);
             alert('Error toggling external widget');
-            // Revert checkbox state on error
-            checkboxElement.checked = !isDisabled;
+            // Revert dropdown to previous value on error
+            selectElement.value = previousValue;
           });
         }
 
