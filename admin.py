@@ -68,12 +68,60 @@ def update_status():
     )
     return redirect("/admin")
 
-@admin.route("/test_firebase_connection", methods=["GET"])
+@admin.route("/admin/test_firebase_connection", methods=["GET"])
 @admin_login_required
 def test_firebase_connection():
     """Test Firebase connection and list users (for debugging)"""
     try:
-        from firebase_service import firebase_app, auth
+        from firebase_service import firebase_app
+        from firebase_admin import auth
+        
+        if firebase_app is None:
+            return jsonify({
+                "success": False,
+                "error": "Firebase is not initialized",
+                "details": "Check FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON environment variable"
+            }), 500
+        
+        # Try to list a few users to verify connection
+        try:
+            # List users (limited to 10 for testing)
+            page = auth.list_users(max_results=10)
+            users = []
+            for user in page.users:
+                users.append({
+                    "uid": user.uid,
+                    "email": user.email,
+                    "disabled": user.disabled,
+                    "email_verified": user.email_verified
+                })
+            
+            return jsonify({
+                "success": True,
+                "message": "Firebase connection successful",
+                "users_found": len(users),
+                "users": users
+            }), 200
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Firebase connection test failed: {str(e)}",
+                "error_type": type(e).__name__
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Error testing Firebase: {str(e)}"
+        }), 500
+
+@admin.route("/admin/test_firebase_connection", methods=["GET"])
+@admin_login_required
+def test_firebase_connection():
+    """Test Firebase connection and list users (for debugging)"""
+    try:
+        from firebase_service import firebase_app
+        from firebase_admin import auth
         
         if firebase_app is None:
             return jsonify({
