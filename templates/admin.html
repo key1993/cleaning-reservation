@@ -1,723 +1,1114 @@
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Admin - Dashboard</title>
-      <style>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - EBSHER</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-          font-family: Arial, sans-serif;
-          padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
         }
-        .logo-container {
-          text-align: center;
-          margin-bottom: 10px;
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
         .logo-container img {
-          height: 130px;
+            height: 50px;
         }
-        h1 {
-          text-align: center;
-          margin-top: 10px;
+
+        .header-title {
+            font-size: 24px;
+            font-weight: 600;
         }
-        .tab-buttons {
-          display: flex;
-          justify-content: center;
-          margin-bottom: 10px;
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
-        .tab-buttons button {
-          margin: 0 10px;
-          padding: 10px 20px;
-          cursor: pointer;
-          font-size: 16px;
+
+        .user-info {
+            font-size: 14px;
+            opacity: 0.9;
         }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 30px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            background: white;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            background: #f5f7fa;
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Tab Content */
         .tab-content {
-          display: none;
+            display: none;
         }
+
         .tab-content.active {
-          display: block;
+            display: block;
+            animation: fadeIn 0.3s ease;
         }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Card */
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f5f7fa;
+        }
+
+        .card-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .card-subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Table */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+        }
+
         table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 10px;
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
         }
-        th, td {
-          border: 1px solid #aaa;
-          padding: 8px;
-          text-align: left;
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
+
         th {
-          background-color: #f2f2f2;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
         }
-        .id-cell {
-          font-family: monospace;
-          font-size: 0.9em;
-          color: #555;
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
         }
-        .inline-form {
-          display: inline-block;
-          margin-right: 5px;
+
+        tbody tr {
+            transition: all 0.2s ease;
         }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-confirmed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-canceled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-done {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-disabled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Form Elements */
+        .form-inline {
+            display: inline-flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
         .cost-input {
-          width: 80px;
+            width: 100px;
         }
-        .status-label {
-          font-weight: bold;
+
+        /* Checkbox */
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
         }
-        .status-pending { color: orange; }
-        .status-confirmed { color: green; }
-        .status-canceled { color: red; }
-        .status-done { color: blue; }
-        .payment-due {
-          background-color: #fff3cd;
-          border: 1px solid #ffeaa7;
-        }
-        .payment-overdue {
-          background-color: #f8d7da;
-          border: 1px solid #f5c6cb;
-        }
-        .payment-checkbox {
-          transform: scale(1.5);
-          margin: 0;
-        }
+
+        /* Modal */
         .modal {
-          display: none;
-          position: fixed;
-          z-index: 1;
-          left: 0;
-          top: 0;
-          width: 100%;
-          height: 100%;
-          overflow: auto;
-          background-color: rgba(0,0,0,0.4);
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
         }
+
         .modal-content {
-          background-color: #fefefe;
-          margin: 15% auto;
-          padding: 20px;
-          border: 1px solid #888;
-          width: 80%;
-          max-width: 500px;
-          border-radius: 5px;
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideDown 0.3s ease;
         }
-        .modal-buttons {
-          text-align: center;
-          margin-top: 20px;
-        }
-        .modal-buttons button {
-          margin: 0 10px;
-          padding: 10px 20px;
-          cursor: pointer;
-        }
-        .btn-confirm {
-          background-color: #28a745;
-          color: white;
-          border: none;
-          border-radius: 3px;
-        }
-        .btn-cancel {
-          background-color: #6c757d;
-          color: white;
-          border: none;
-          border-radius: 3px;
-        }
-      </style>
-    </head>
-    <body>
 
-      <!-- Logo -->
-      <div class="logo-container">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="EBSHER Logo">
-      </div>
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
-      <h1>Admin Panel</h1>
+        .modal-header {
+            margin-bottom: 20px;
+        }
 
-      <!-- Tabs -->
-      <div class="tab-buttons">
-        <button onclick="showTab('reservations')">Reservations</button>
-        <button onclick="showTab('clients')">Clients</button>
-      </div>
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
 
-      <!-- Reservation Tab -->
-      <div id="reservations" class="tab-content active">
-        <h2>Cleaning Reservations</h2>
-        <div style="margin-bottom: 10px;">
-          <button onclick="deleteSelectedReservations()" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; font-size: 14px;">
-            Delete Selected Reservations
-          </button>
-          <span id="selectedReservationsCount" style="margin-left: 10px; color: #666;"></span>
+        .modal-body {
+            margin-bottom: 25px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Selected Count */
+        .selected-count {
+            color: #dc3545;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Link Styles */
+        a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        /* ID Cell */
+        .id-cell {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Action Buttons Container */
+        .action-buttons-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 15px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .table-wrapper {
+                overflow-x: scroll;
+            }
+
+            th, td {
+                padding: 8px;
+                font-size: 12px;
+            }
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="EBSHER Logo">
+            </div>
+            <div>
+                <div class="header-title">Admin Dashboard</div>
+            </div>
         </div>
-        <table>
-                                 <tr>
-         <th>
-              <input type="checkbox" id="selectAllReservations" onchange="toggleSelectAllReservations(this)">
-            </th>
-         <th>ID</th>
-         <th>User ID</th>
-         <th>Date</th>
-         <th>Time Slot</th>
-         <th>Location</th>
-         <th>Panels</th>
-         <th>Status</th>
-         <th>Cost (JOD)</th>
-         <th>Actions</th>
-       </tr>
-                {% for r in reservations %}
-             <tr>
-         <td>
-              <input type="checkbox" class="reservation-checkbox" value="{{ r._id }}" onchange="updateSelectedReservationsCount()">
-            </td>
-         <td class="id-cell">{{ r._id }}</td>
-         <td>{{ r.user_id }}</td>
-         <td>{{ r.date }}</td>
-            <td>{{ r.time_slot }}</td>
-            <td>
-              {% if r.latitude and r.longitude %}
-                <a href="https://www.google.com/maps?q={{ r.latitude }},{{ r.longitude }}" target="_blank">
-                  ({{ r.latitude }}, {{ r.longitude }})
-                </a>
-              {% else %}
-                N/A
-              {% endif %}
-            </td>
-            <td>{{ r.number_of_panels }}</td>
-            <td>
-              {% if r.status == 'Confirmed' %}
-                <span class="status-label status-confirmed">Approved</span>
-              {% elif r.status == 'Canceled' %}
-                <span class="status-label status-canceled">Canceled</span>
-              {% elif r.status == 'Done' %}
-                <span class="status-label status-done">Done</span>
-              {% else %}
-                <span class="status-label status-pending">Pending</span>
-              {% endif %}
-            </td>
-            <td>
-              <form method="POST" action="/update_cost" class="inline-form">
-                <input type="hidden" name="reservation_id" value="{{ r._id }}">
-                <input type="number" name="cost" step="0.01" class="cost-input" value="{{ r.get('cost', '') }}">
-                <button type="submit">Save</button>
-              </form>
-            </td>
-            <td>
-              {% if r.status == 'Pending' %}
-                <form method="POST" action="/approve/{{ r._id }}" class="inline-form">
-                  <button type="submit" style="color: green;">Approve</button>
-                </form>
-                <form method="POST" action="/deny/{{ r._id }}" class="inline-form">
-                  <button type="submit" style="color: orange;">Deny</button>
-                </form>
-              {% endif %}
-              <form method="POST" action="/delete/{{ r._id }}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this reservation?');">
-                <button type="submit" style="color: red;">Delete</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </table>
-      </div>
-
-      <!-- Clients Tab -->
-      <div id="clients" class="tab-content">
-        <h2>Registered Clients (Total: {{ clients|length }})</h2>
-        <div style="margin-bottom: 10px;">
-          <button onclick="deleteSelectedClients()" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; font-size: 14px;">
-            Delete Selected Clients
-          </button>
-          <span id="selectedCount" style="margin-left: 10px; color: #666;"></span>
+        <div class="header-right">
+            <div class="user-info">Admin User</div>
+            <a href="/admin/logout" class="logout-btn">🚪 Logout</a>
         </div>
-        <table>
-          <tr>
-            <th>
-              <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
-            </th>
-            <th>#</th>
-            <th>Full Name</th>
-            <th>Signup Date</th>
-            <th>Phone</th>
-            <th>Email</th>
-            <th>Subscription</th>
-            <th>Next Payment</th>
-            <th>Payment Due</th>
-            <th>Location</th>
-            <th>System Type</th>
-            <th>HA URL</th>
-            <th>HA Token</th>
-            <th>Account Status</th>
-            <th>Disable External Widget</th>
-            <th>Actions</th>
-          </tr>
-          {% for c in clients %}
-          <tr>
-            <td>
-              <input type="checkbox" class="client-checkbox" value="{{ c._id }}" onchange="updateSelectedCount()">
-            </td>
-            <td>{{ loop.index }}</td>
-            <td>{{ c.full_name }}</td>
-            <td>{{ c.signup_date }}</td>
-            <td>{{ c.phone }}</td>
-            <td>{{ c.email or 'N/A' }}</td>
-            <td>
-              <form method="POST" action="/update_subscription/{{ c._id }}" class="inline-form">
-                <select name="subscription_type" onchange="this.form.submit()">
-                  <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
-                  <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
-                </select>
-              </form>
-            </td>
-            <td>{{ c.next_payment_date }}</td>
-            <td>
-              <input type="checkbox" class="payment-checkbox" onchange="confirmPayment('{{ c._id }}', '{{ c.full_name }}', '{{ c.subscription_type }}', this.checked)">
-              <br><small>Confirm Payment</small>
-            </td>
-            <td>
-              {% if c.location %}
-                {% set parts = c.location.split(',') %}
-                {% if parts | length == 2 %}
-                  <a href="https://www.google.com/maps?q={{ parts[0] | trim }},{{ parts[1] | trim }}" target="_blank">
-                    ({{ parts[0] | trim }}, {{ parts[1] | trim }})
-                  </a>
-                {% else %}
-                  {{ c.location }}
-                {% endif %}
-              {% else %}
-                N/A
-              {% endif %}
-            </td>
-            <td>{{ c.system_type }}</td>
-            <td>{{ c.ha_url }}</td>
-            <td>{{ c.ha_token }}</td>
-            <td>
-              {% if c.firebase_uid %}
-                {% if c.account_disabled %}
-                  <span style="color: red; font-weight: bold;">🔒 Disabled</span>
-                  <br><small>Since: {{ c.account_disabled_date if c.account_disabled_date else 'N/A' }}</small>
-                {% else %}
-                  <span style="color: green; font-weight: bold;">✅ Active</span>
-                {% endif %}
-                <br><small>UID: {{ c.firebase_uid[:8] }}...</small>
-              {% else %}
-                <span style="color: #666;">⚠️ No Firebase UID</span>
-                <br><button onclick="searchFirebaseUser('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #17a2b8; color: white; padding: 3px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px;">
-                  Link by Email
-                </button>
-              {% endif %}
-            </td>
-            <td>
-              <select class="widget-status-select" 
-                      id="widget-select-{{ c._id }}"
-                      data-previous-value="{% if c.get('external_widget_disabled') %}disabled{% else %}enabled{% endif %}"
-                      onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.value, this)"
-                      style="padding: 5px; font-size: 14px; border-radius: 3px; border: 1px solid #ccc; min-width: 120px;">
-                <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
-                <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
-              </select>
-            </td>
-            <td>
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                {% if c.firebase_uid %}
-                  {% if c.account_disabled %}
-                    <button onclick="enableAccount('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                      ✅ Enable Account
-                    </button>
-                  {% else %}
-                    <button onclick="disableAccount('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #ffc107; color: #000; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                      🔒 Disable Account
-                    </button>
-                  {% endif %}
-                  <button onclick="deleteFirebaseAccount('{{ c._id }}', '{{ c.full_name }}')" style="background-color: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                    🗑️ Delete Firebase Account
-                  </button>
-                {% endif %}
-                <form method="POST" action="/delete_client/{{ c._id }}" class="inline-form" onsubmit="return confirm('Delete this client?');">
-                  <button type="submit" style="background-color: #6c757d; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; width: 100%;">
-                    Delete Client
-                  </button>
-                </form>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </table>
-      </div>
+    </div>
 
-      <!-- Payment Confirmation Modal -->
-      <div id="paymentModal" class="modal">
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('reservations')">📋 Reservations</button>
+            <button class="tab-btn" onclick="showTab('clients')">👥 Clients</button>
+        </div>
+
+        <!-- Reservations Tab -->
+        <div id="reservations" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Cleaning Reservations</div>
+                        <div class="card-subtitle">Manage and track all cleaning reservations</div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-danger" onclick="deleteSelectedReservations()">
+                            🗑️ Delete Selected
+                        </button>
+                        <span id="selectedReservationsCount" class="selected-count"></span>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllReservations" onchange="toggleSelectAllReservations(this)"></th>
+                                <th>ID</th>
+                                <th>User ID</th>
+                                <th>Date</th>
+                                <th>Time Slot</th>
+                                <th>Location</th>
+                                <th>Panels</th>
+                                <th>Status</th>
+                                <th>Cost (JOD)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in reservations %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="reservation-checkbox" value="{{ r._id }}" onchange="updateSelectedReservationsCount()">
+                                </td>
+                                <td class="id-cell">{{ r._id }}</td>
+                                <td>{{ r.user_id }}</td>
+                                <td>{{ r.date }}</td>
+                                <td>{{ r.time_slot }}</td>
+                                <td>
+                                    {% if r.latitude and r.longitude %}
+                                        <a href="https://www.google.com/maps?q={{ r.latitude }},{{ r.longitude }}" target="_blank">
+                                            📍 View Map
+                                        </a>
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ r.number_of_panels }}</td>
+                                <td>
+                                    {% if r.status == 'Confirmed' %}
+                                        <span class="badge badge-confirmed">Approved</span>
+                                    {% elif r.status == 'Canceled' %}
+                                        <span class="badge badge-canceled">Canceled</span>
+                                    {% elif r.status == 'Done' %}
+                                        <span class="badge badge-done">Done</span>
+                                    {% else %}
+                                        <span class="badge badge-pending">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST" action="/update_cost" class="form-inline">
+                                        <input type="hidden" name="reservation_id" value="{{ r._id }}">
+                                        <input type="number" name="cost" step="0.01" class="cost-input" value="{{ r.get('cost', '') }}" placeholder="0.00">
+                                        <button type="submit" class="btn btn-sm btn-primary">💾</button>
+                                    </form>
+                                </td>
+                                <td>
+                                    <div class="action-buttons-cell">
+                                        {% if r.status == 'Pending' %}
+                                            <form method="POST" action="/approve/{{ r._id }}" class="form-inline">
+                                                <button type="submit" class="btn btn-sm btn-success">✅ Approve</button>
+                                            </form>
+                                            <form method="POST" action="/deny/{{ r._id }}" class="form-inline">
+                                                <button type="submit" class="btn btn-sm btn-warning">❌ Deny</button>
+                                            </form>
+                                        {% endif %}
+                                        <form method="POST" action="/delete/{{ r._id }}" class="form-inline" onsubmit="return confirm('Delete this reservation?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">🗑️ Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clients Tab -->
+        <div id="clients" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Registered Clients</div>
+                        <div class="card-subtitle">Total: {{ clients|length }} clients</div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-danger" onclick="deleteSelectedClients()">
+                            🗑️ Delete Selected
+                        </button>
+                        <span id="selectedCount" class="selected-count"></span>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+                                <th>#</th>
+                                <th>Full Name</th>
+                                <th>Signup Date</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>Subscription</th>
+                                <th>Next Payment</th>
+                                <th>Payment Due</th>
+                                <th>Location</th>
+                                <th>System Type</th>
+                                <th>HA URL</th>
+                                <th>HA Token</th>
+                                <th>Account Status</th>
+                                <th>Widget Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in clients %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="client-checkbox" value="{{ c._id }}" onchange="updateSelectedCount()">
+                                </td>
+                                <td>{{ loop.index }}</td>
+                                <td><strong>{{ c.full_name }}</strong></td>
+                                <td>{{ c.signup_date }}</td>
+                                <td>{{ c.phone }}</td>
+                                <td>{{ c.email or 'N/A' }}</td>
+                                <td>
+                                    <form method="POST" action="/update_subscription/{{ c._id }}" class="form-inline">
+                                        <select name="subscription_type" onchange="this.form.submit()" style="min-width: 100px;">
+                                            <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
+                                            <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
+                                        </select>
+                                    </form>
+                                </td>
+                                <td>{{ c.next_payment_date }}</td>
+                                <td>
+                                    <input type="checkbox" class="payment-checkbox" onchange="confirmPayment('{{ c._id }}', '{{ c.full_name }}', '{{ c.subscription_type }}', this.checked)" style="cursor: pointer;">
+                                    <br><small>Confirm</small>
+                                </td>
+                                <td>
+                                    {% if c.location %}
+                                        {% set parts = c.location.split(',') %}
+                                        {% if parts | length == 2 %}
+                                            <a href="https://www.google.com/maps?q={{ parts[0] | trim }},{{ parts[1] | trim }}" target="_blank">
+                                                📍 Map
+                                            </a>
+                                        {% else %}
+                                            {{ c.location }}
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ c.system_type }}</td>
+                                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">{{ c.ha_url or 'N/A' }}</td>
+                                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-family: monospace; font-size: 11px;">{{ c.ha_token[:20] if c.ha_token else 'N/A' }}...</td>
+                                <td>
+                                    {% if c.firebase_uid %}
+                                        {% if c.account_disabled %}
+                                            <span class="badge badge-disabled">🔒 Disabled</span>
+                                            <br><small style="font-size: 11px;">Since: {{ c.account_disabled_date if c.account_disabled_date else 'N/A' }}</small>
+                                        {% else %}
+                                            <span class="badge badge-active">✅ Active</span>
+                                        {% endif %}
+                                        <br><small style="font-size: 11px; color: #666;">UID: {{ c.firebase_uid[:8] }}...</small>
+                                    {% else %}
+                                        <span style="color: #666; font-size: 12px;">⚠️ No Firebase UID</span>
+                                        <br><button onclick="searchFirebaseUser('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-primary" style="margin-top: 5px;">
+                                            Link by Email
+                                        </button>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <select class="widget-status-select" 
+                                            id="widget-select-{{ c._id }}"
+                                            data-previous-value="{% if c.get('external_widget_disabled') %}disabled{% else %}enabled{% endif %}"
+                                            onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.value, this)"
+                                            style="padding: 6px; font-size: 13px; border-radius: 6px; border: 2px solid #e0e0e0; min-width: 100px;">
+                                        <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
+                                        <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <div class="action-buttons-cell">
+                                        {% if c.firebase_uid %}
+                                            {% if c.account_disabled %}
+                                                <button onclick="enableAccount('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-success">
+                                                    ✅ Enable
+                                                </button>
+                                            {% else %}
+                                                <button onclick="disableAccount('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-warning">
+                                                    🔒 Disable
+                                                </button>
+                                            {% endif %}
+                                            <button onclick="deleteFirebaseAccount('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-danger">
+                                                🗑️ Delete Firebase
+                                            </button>
+                                        {% endif %}
+                                        <form method="POST" action="/delete_client/{{ c._id }}" class="form-inline" onsubmit="return confirm('Delete this client?');">
+                                            <button type="submit" class="btn btn-sm btn-secondary">
+                                                🗑️ Delete Client
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Confirmation Modal -->
+    <div id="paymentModal" class="modal">
         <div class="modal-content">
-          <h3>Confirm Payment</h3>
-          <p id="modalMessage"></p>
-          <div class="modal-buttons">
-            <button class="btn-confirm" onclick="processPayment()">Yes, Confirm Payment</button>
-            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-          </div>
+            <div class="modal-header">
+                <div class="modal-title">Confirm Payment</div>
+            </div>
+            <div class="modal-body">
+                <p id="modalMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-success" onclick="processPayment()">Yes, Confirm Payment</button>
+            </div>
         </div>
-      </div>
+    </div>
 
-      <!-- JavaScript for Tabs and Payment -->
-      <script>
+    <!-- JavaScript -->
+    <script>
         let currentPaymentData = null;
 
         function showTab(tabId) {
-          document.querySelectorAll('.tab-content').forEach(tab => {
-            tab.classList.remove('active');
-          });
-          document.getElementById(tabId).classList.add('active');
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabId).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
         }
 
         function confirmPayment(clientId, clientName, subscriptionType, isChecked) {
-          if (!isChecked) return;
-          
-          const subscriptionText = subscriptionType === 'monthly' ? 'monthly' : 'yearly';
-          currentPaymentData = {
-            clientId: clientId,
-            clientName: clientName,
-            subscriptionType: subscriptionType
-          };
-          
-          document.getElementById('modalMessage').innerHTML = 
-            `Are you sure that <strong>${clientName}</strong> has paid their ${subscriptionText} subscription?<br><br>
-            This will update their next payment date automatically.`;
-          
-          document.getElementById('paymentModal').style.display = 'block';
+            if (!isChecked) return;
+            
+            const subscriptionText = subscriptionType === 'monthly' ? 'monthly' : 'yearly';
+            currentPaymentData = {
+                clientId: clientId,
+                clientName: clientName,
+                subscriptionType: subscriptionType
+            };
+            
+            document.getElementById('modalMessage').innerHTML = 
+                `Are you sure that <strong>${clientName}</strong> has paid their ${subscriptionText} subscription?<br><br>
+                This will update their next payment date automatically.`;
+            
+            document.getElementById('paymentModal').style.display = 'block';
         }
 
         function processPayment() {
-          if (!currentPaymentData) return;
-          
-          fetch('/confirm_payment', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(currentPaymentData)
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert('Payment confirmed! Next payment date updated.');
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error processing payment confirmation');
-          });
-          
-          closeModal();
+            if (!currentPaymentData) return;
+            
+            fetch('/confirm_payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(currentPaymentData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Payment confirmed! Next payment date updated.');
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error processing payment confirmation');
+            });
+            
+            closeModal();
         }
 
         function closeModal() {
-          document.getElementById('paymentModal').style.display = 'none';
-          currentPaymentData = null;
-          
-          // Uncheck the checkbox
-          const checkboxes = document.querySelectorAll('.payment-checkbox:checked');
-          checkboxes.forEach(cb => cb.checked = false);
+            document.getElementById('paymentModal').style.display = 'none';
+            currentPaymentData = null;
+            
+            const checkboxes = document.querySelectorAll('.payment-checkbox:checked');
+            checkboxes.forEach(cb => cb.checked = false);
         }
 
-        // Close modal when clicking outside
         window.onclick = function(event) {
-          const modal = document.getElementById('paymentModal');
-          if (event.target == modal) {
-            closeModal();
-          }
+            const modal = document.getElementById('paymentModal');
+            if (event.target == modal) {
+                closeModal();
+            }
         }
 
         // Bulk client deletion functions
         function toggleSelectAll(selectAllCheckbox) {
-          const checkboxes = document.querySelectorAll('.client-checkbox');
-          checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAllCheckbox.checked;
-          });
-          updateSelectedCount();
+            const checkboxes = document.querySelectorAll('.client-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateSelectedCount();
         }
 
         function updateSelectedCount() {
-          const checkedBoxes = document.querySelectorAll('.client-checkbox:checked');
-          const count = checkedBoxes.length;
-          const countSpan = document.getElementById('selectedCount');
-          
-          if (count > 0) {
-            countSpan.textContent = `${count} client(s) selected`;
-            countSpan.style.color = '#dc3545';
-            countSpan.style.fontWeight = 'bold';
-          } else {
-            countSpan.textContent = '';
-          }
-          
-          // Update select all checkbox state
-          const allCheckboxes = document.querySelectorAll('.client-checkbox');
-          const selectAllCheckbox = document.getElementById('selectAll');
-          if (allCheckboxes.length > 0) {
-            selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
-          }
+            const checkedBoxes = document.querySelectorAll('.client-checkbox:checked');
+            const count = checkedBoxes.length;
+            const countSpan = document.getElementById('selectedCount');
+            
+            if (count > 0) {
+                countSpan.textContent = `${count} selected`;
+            } else {
+                countSpan.textContent = '';
+            }
+            
+            const allCheckboxes = document.querySelectorAll('.client-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (allCheckboxes.length > 0) {
+                selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+            }
         }
 
         function deleteSelectedClients() {
-          const checkedBoxes = document.querySelectorAll('.client-checkbox:checked');
-          
-          if (checkedBoxes.length === 0) {
-            alert('Please select at least one client to delete.');
-            return;
-          }
-          
-          const clientIds = Array.from(checkedBoxes).map(cb => cb.value);
-          const count = clientIds.length;
-          
-          if (!confirm(`Are you sure you want to delete ${count} selected client(s)? This action cannot be undone.`)) {
-            return;
-          }
-          
-          // Send bulk delete request
-          fetch('/delete_clients_bulk', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ client_ids: clientIds })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(data.message);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
+            const checkedBoxes = document.querySelectorAll('.client-checkbox:checked');
+            
+            if (checkedBoxes.length === 0) {
+                alert('Please select at least one client to delete.');
+                return;
             }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error deleting clients');
-          });
+            
+            const clientIds = Array.from(checkedBoxes).map(cb => cb.value);
+            const count = clientIds.length;
+            
+            if (!confirm(`Are you sure you want to delete ${count} selected client(s)? This action cannot be undone.`)) {
+                return;
+            }
+            
+            fetch('/delete_clients_bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ client_ids: clientIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting clients');
+            });
         }
 
         // Bulk reservation deletion functions
         function toggleSelectAllReservations(selectAllCheckbox) {
-          const checkboxes = document.querySelectorAll('.reservation-checkbox');
-          checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAllCheckbox.checked;
-          });
-          updateSelectedReservationsCount();
+            const checkboxes = document.querySelectorAll('.reservation-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateSelectedReservationsCount();
         }
 
         function updateSelectedReservationsCount() {
-          const checkedBoxes = document.querySelectorAll('.reservation-checkbox:checked');
-          const count = checkedBoxes.length;
-          const countSpan = document.getElementById('selectedReservationsCount');
-          
-          if (count > 0) {
-            countSpan.textContent = `${count} reservation(s) selected`;
-            countSpan.style.color = '#dc3545';
-            countSpan.style.fontWeight = 'bold';
-          } else {
-            countSpan.textContent = '';
-          }
-          
-          // Update select all checkbox state
-          const allCheckboxes = document.querySelectorAll('.reservation-checkbox');
-          const selectAllCheckbox = document.getElementById('selectAllReservations');
-          if (allCheckboxes.length > 0) {
-            selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
-          }
+            const checkedBoxes = document.querySelectorAll('.reservation-checkbox:checked');
+            const count = checkedBoxes.length;
+            const countSpan = document.getElementById('selectedReservationsCount');
+            
+            if (count > 0) {
+                countSpan.textContent = `${count} selected`;
+            } else {
+                countSpan.textContent = '';
+            }
+            
+            const allCheckboxes = document.querySelectorAll('.reservation-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAllReservations');
+            if (allCheckboxes.length > 0) {
+                selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+            }
         }
 
         function deleteSelectedReservations() {
-          const checkedBoxes = document.querySelectorAll('.reservation-checkbox:checked');
-          
-          if (checkedBoxes.length === 0) {
-            alert('Please select at least one reservation to delete.');
-            return;
-          }
-          
-          const reservationIds = Array.from(checkedBoxes).map(cb => cb.value);
-          const count = reservationIds.length;
-          
-          if (!confirm(`Are you sure you want to delete ${count} selected reservation(s)? This action cannot be undone.`)) {
-            return;
-          }
-          
-          // Send bulk delete request
-          fetch('/delete_reservations_bulk', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ reservation_ids: reservationIds })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(data.message);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
+            const checkedBoxes = document.querySelectorAll('.reservation-checkbox:checked');
+            
+            if (checkedBoxes.length === 0) {
+                alert('Please select at least one reservation to delete.');
+                return;
             }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error deleting reservations');
-          });
+            
+            const reservationIds = Array.from(checkedBoxes).map(cb => cb.value);
+            const count = reservationIds.length;
+            
+            if (!confirm(`Are you sure you want to delete ${count} selected reservation(s)? This action cannot be undone.`)) {
+                return;
+            }
+            
+            fetch('/delete_reservations_bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ reservation_ids: reservationIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting reservations');
+            });
         }
 
         // Firebase account management functions
         function disableAccount(clientId, clientName) {
-          if (!confirm(`Are you sure you want to disable the Firebase account for ${clientName}?`)) {
-            return;
-          }
-          
-          fetch(`/disable_client_account/${clientId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+            if (!confirm(`Are you sure you want to disable the Firebase account for ${clientName}?`)) {
+                return;
             }
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(data.message);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error disabling account');
-          });
+            
+            fetch(`/disable_client_account/${clientId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error disabling account');
+            });
         }
 
         function enableAccount(clientId, clientName) {
-          if (!confirm(`Are you sure you want to enable the Firebase account for ${clientName}?`)) {
-            return;
-          }
-          
-          fetch(`/enable_client_account/${clientId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+            if (!confirm(`Are you sure you want to enable the Firebase account for ${clientName}?`)) {
+                return;
             }
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(data.message);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error enabling account');
-          });
+            
+            fetch(`/enable_client_account/${clientId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error enabling account');
+            });
         }
 
         function deleteFirebaseAccount(clientId, clientName) {
-          if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
-            return;
-          }
-          
-          fetch(`/delete_client_firebase_account/${clientId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+            if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+                return;
             }
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(data.message);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error deleting Firebase account');
-          });
+            
+            fetch(`/delete_client_firebase_account/${clientId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting Firebase account');
+            });
         }
 
         function searchFirebaseUser(clientId, clientName) {
-          const email = prompt(`Enter the email address for ${clientName} to search in Firebase:`);
-          
-          if (!email) {
-            return;
-          }
-          
-          if (!confirm(`Search for Firebase user with email: ${email} and link to ${clientName}?`)) {
-            return;
-          }
-          
-          fetch('/search_firebase_user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: email,
-              client_id: clientId
-            })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(`✅ Firebase user found!\n\nEmail: ${data.email}\nUID: ${data.firebase_uid}\nStatus: ${data.disabled ? 'Disabled' : 'Active'}\n\nAccount linked successfully!`);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
+            const email = prompt(`Enter the email address for ${clientName} to search in Firebase:`);
+            
+            if (!email) {
+                return;
             }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error searching for Firebase user');
-          });
+            
+            if (!confirm(`Search for Firebase user with email: ${email} and link to ${clientName}?`)) {
+                return;
+            }
+            
+            fetch('/search_firebase_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email,
+                    client_id: clientId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ Firebase user found!\n\nEmail: ${data.email}\nUID: ${data.firebase_uid}\nStatus: ${data.disabled ? 'Disabled' : 'Active'}\n\nAccount linked successfully!`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error searching for Firebase user');
+            });
         }
 
         function toggleExternalWidget(clientId, clientName, status, selectElement) {
-          const isDisabled = status === 'disabled';
-          const action = isDisabled ? 'disable' : 'enable';
-          const previousValue = selectElement.getAttribute('data-previous-value') || (isDisabled ? 'enabled' : 'disabled');
-          
-          if (!confirm(`Are you sure you want to ${action} the external widget for ${clientName}?`)) {
-            // Revert dropdown to previous value
-            selectElement.value = previousValue;
-            return;
-          }
-          
-          // Store current value as previous value
-          selectElement.setAttribute('data-previous-value', status);
-          
-          fetch(`/toggle_external_widget/${clientId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              disabled: isDisabled,
-              client_name: clientName
-            })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              alert(data.message);
-              location.reload();
-            } else {
-              alert('Error: ' + data.error);
-              // Revert dropdown to previous value on error
-              selectElement.value = previousValue;
+            const isDisabled = status === 'disabled';
+            const action = isDisabled ? 'disable' : 'enable';
+            const previousValue = selectElement.getAttribute('data-previous-value') || (isDisabled ? 'enabled' : 'disabled');
+            
+            if (!confirm(`Are you sure you want to ${action} the external widget for ${clientName}?`)) {
+                selectElement.value = previousValue;
+                return;
             }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('Error toggling external widget');
-            // Revert dropdown to previous value on error
-            selectElement.value = previousValue;
-          });
+            
+            selectElement.setAttribute('data-previous-value', status);
+            
+            fetch(`/toggle_external_widget/${clientId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    disabled: isDisabled,
+                    client_name: clientName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                    selectElement.value = previousValue;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error toggling external widget');
+                selectElement.value = previousValue;
+            });
         }
-
-      </script>
-    </body>
-    </html>
+    </script>
+</body>
+</html>
