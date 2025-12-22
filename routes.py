@@ -757,15 +757,10 @@ def get_widget_status():
         
         # Get widget status (defaults to False/Enabled if not set)
         is_disabled = client.get("external_widget_disabled", False)
+        status_text = "Disabled" if is_disabled else "Enabled"
         
         return jsonify({
-            "success": True,
-            "client_id": str(client["_id"]),
-            "client_name": client.get("full_name", "Unknown"),
-            "disabled": is_disabled,
-            "enabled": not is_disabled,
-            "status": "disabled" if is_disabled else "enabled",
-            "timestamp": datetime.utcnow().isoformat()
+            "external widget status": status_text
         }), 200
         
     except Exception as e:
