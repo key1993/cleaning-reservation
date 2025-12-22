@@ -18,27 +18,66 @@ def initialize_firebase():
     
     # Get Firebase credentials from environment variable or file
     cred_path = os.environ.get("FIREBASE_CREDENTIALS_PATH")
+    cred_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+    project_id = os.environ.get("FIREBASE_PROJECT_ID")  # Optional explicit project ID
     
-    if cred_path and os.path.exists(cred_path):
-        # Use service account JSON file
-        cred = credentials.Certificate(cred_path)
-        firebase_app = firebase_admin.initialize_app(cred)
-    elif os.environ.get("FIREBASE_CREDENTIALS_JSON"):
-        # Use JSON string from environment variable
-        import json
-        cred_dict = json.loads(os.environ.get("FIREBASE_CREDENTIALS_JSON"))
-        cred = credentials.Certificate(cred_dict)
-        firebase_app = firebase_admin.initialize_app(cred)
-    else:
-        # Try default credentials (for Google Cloud environments)
-        try:
-            firebase_app = firebase_admin.initialize_app()
-        except Exception as e:
-            print(f"Warning: Firebase not initialized. Error: {e}")
-            print("Set FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON environment variable")
-            return None
-    
-    return firebase_app
+    try:
+        if cred_path and os.path.exists(cred_path):
+            # Use service account JSON file
+            cred = credentials.Certificate(cred_path)
+            # Extract project_id from credentials if not explicitly set
+            if not project_id:
+                import json
+                with open(cred_path, 'r') as f:
+                    cred_data = json.load(f)
+                    project_id = cred_data.get('project_id')
+            
+            # Initialize with explicit project_id
+            if project_id:
+                firebase_app = firebase_admin.initialize_app(cred, {
+                    'projectId': project_id
+                })
+            else:
+                firebase_app = firebase_admin.initialize_app(cred)
+                
+        elif cred_json:
+            # Use JSON string from environment variable
+            import json
+            cred_dict = json.loads(cred_json)
+            cred = credentials.Certificate(cred_dict)
+            
+            # Extract project_id from credentials if not explicitly set
+            if not project_id:
+                project_id = cred_dict.get('project_id')
+            
+            # Initialize with explicit project_id
+            if project_id:
+                firebase_app = firebase_admin.initialize_app(cred, {
+                    'projectId': project_id
+                })
+            else:
+                firebase_app = firebase_admin.initialize_app(cred)
+                
+        else:
+            # Try default credentials (for Google Cloud environments)
+            project_id = project_id or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            if project_id:
+                firebase_app = firebase_admin.initialize_app(options={
+                    'projectId': project_id
+                })
+            else:
+                firebase_app = firebase_admin.initialize_app()
+        
+        print(f"✅ Firebase Admin SDK initialized successfully")
+        if project_id:
+            print(f"   Project ID: {project_id}")
+        return firebase_app
+        
+    except Exception as e:
+        print(f"⚠️ Firebase initialization failed: {e}")
+        print("Set FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON environment variable")
+        print("Or set FIREBASE_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable")
+        return None
 
 def disable_firebase_user(firebase_uid):
     """
