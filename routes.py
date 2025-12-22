@@ -704,3 +704,74 @@ def update_client_firebase_uid(client_id):
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/toggle_external_widget/<client_id>", methods=["POST"])
+def toggle_external_widget(client_id):
+    """Toggle external widget disable/enable status and send API request to widget"""
+    try:
+        data = request.json if request.is_json else request.form
+        is_disabled = data.get("disabled", False)
+        client_name = data.get("client_name", "Unknown")
+        
+        # Get client data
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        # Update widget disabled status in database
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {"external_widget_disabled": is_disabled}}
+        )
+        
+        # Get widget endpoint URL from environment variable or use client's HA URL
+        # You can set EXTERNAL_WIDGET_API_URL environment variable to specify the widget endpoint
+        widget_api_url = os.environ.get("EXTERNAL_WIDGET_API_URL")
+        
+        # If no environment variable is set, try to construct URL from HA URL
+        if not widget_api_url and client.get("ha_url"):
+            # Assuming widget endpoint is at /api/widget/disable relative to HA URL
+            ha_url = client.get("ha_url", "").rstrip("/")
+            widget_api_url = f"{ha_url}/api/widget/disable"
+        
+        # Send API request to external widget if URL is configured
+        if widget_api_url:
+            try:
+                widget_payload = {
+                    "client_id": str(client_id),
+                    "client_name": client_name,
+                    "disabled": is_disabled,
+                    "ha_token": client.get("ha_token"),  # Include HA token for authentication
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                # Send POST request to widget endpoint
+                response = requests.post(
+                    widget_api_url,
+                    json=widget_payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10  # 10 second timeout
+                )
+                
+                if response.status_code == 200:
+                    print(f"✅ Widget API request successful: {response.status_code}")
+                else:
+                    print(f"⚠️ Widget API request returned status {response.status_code}: {response.text}")
+                    
+            except requests.exceptions.RequestException as e:
+                # Log error but don't fail the operation
+                print(f"⚠️ Failed to send widget API request: {e}")
+                # Still return success since database update succeeded
+        else:
+            print("ℹ️ No widget API URL configured. Skipping external widget notification.")
+        
+        action = "disabled" if is_disabled else "enabled"
+        return jsonify({
+            "success": True,
+            "message": f"External widget {action} successfully for {client_name}",
+            "widget_api_url": widget_api_url,
+            "disabled": is_disabled
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

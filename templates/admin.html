@@ -243,6 +243,7 @@
             <th>HA URL</th>
             <th>HA Token</th>
             <th>Account Status</th>
+            <th>Disable External Widget</th>
             <th>Actions</th>
           </tr>
           {% for c in clients %}
@@ -300,6 +301,14 @@
                   Link by Email
                 </button>
               {% endif %}
+            </td>
+            <td>
+              <input type="checkbox" class="widget-disable-checkbox" 
+                     id="widget-checkbox-{{ c._id }}"
+                     {% if c.get('external_widget_disabled') %}checked{% endif %}
+                     onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.checked, this)"
+                     style="transform: scale(1.5); margin: 0;">
+              <br><small>{% if c.get('external_widget_disabled') %}Disabled{% else %}Enabled{% endif %}</small>
             </td>
             <td>
               <div style="display: flex; flex-direction: column; gap: 5px;">
@@ -661,6 +670,44 @@
           .catch(error => {
             console.error('Error:', error);
             alert('Error searching for Firebase user');
+          });
+        }
+
+        function toggleExternalWidget(clientId, clientName, isDisabled, checkboxElement) {
+          const action = isDisabled ? 'disable' : 'enable';
+          
+          if (!confirm(`Are you sure you want to ${action} the external widget for ${clientName}?`)) {
+            // Revert checkbox state
+            checkboxElement.checked = !isDisabled;
+            return;
+          }
+          
+          fetch(`/toggle_external_widget/${clientId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              disabled: isDisabled,
+              client_name: clientName
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert('Error: ' + data.error);
+              // Revert checkbox state on error
+              checkboxElement.checked = !isDisabled;
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('Error toggling external widget');
+            // Revert checkbox state on error
+            checkboxElement.checked = !isDisabled;
           });
         }
 
