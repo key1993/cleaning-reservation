@@ -11,22 +11,31 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f5f7fa;
             color: #333;
             line-height: 1.6;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Header */
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px 30px;
+            padding: 12px 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .header-left {
@@ -40,7 +49,7 @@
         }
 
         .header-title {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
         }
 
@@ -76,30 +85,34 @@
 
         /* Main Container */
         .container {
-            max-width: 1400px;
-            margin: 30px auto;
-            padding: 0 30px;
+            width: 100%;
+            margin: 0;
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         /* Tabs */
         .tabs {
             display: flex;
             gap: 10px;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             background: white;
-            padding: 10px;
+            padding: 8px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            flex-shrink: 0;
         }
 
         .tab-btn {
             flex: 1;
-            padding: 15px 25px;
+            padding: 10px 20px;
             background: transparent;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 500;
             color: #666;
             transition: all 0.3s ease;
@@ -136,17 +149,21 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            padding: 30px;
-            margin-bottom: 30px;
+            padding: 15px;
+            margin-bottom: 15px;
+            height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
             border-bottom: 2px solid #f5f7fa;
+            flex-shrink: 0;
         }
 
         .card-title {
@@ -229,20 +246,25 @@
         }
 
         .btn-sm {
-            padding: 6px 12px;
-            font-size: 12px;
+            padding: 4px 8px;
+            font-size: 11px;
         }
 
         /* Table */
         .table-wrapper {
-            overflow-x: auto;
+            overflow-y: auto;
+            overflow-x: hidden;
             border-radius: 8px;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             background: white;
+            table-layout: auto;
         }
 
         thead {
@@ -251,17 +273,17 @@
         }
 
         th {
-            padding: 15px 12px;
+            padding: 10px 8px;
             text-align: left;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 12px;
             white-space: nowrap;
         }
 
         td {
-            padding: 12px;
+            padding: 8px;
             border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
+            font-size: 12px;
         }
 
         tbody tr {
@@ -447,10 +469,10 @@
             background: #667eea;
             color: white;
             border: none;
-            padding: 4px 10px;
+            padding: 3px 8px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10px;
             margin-left: 5px;
             transition: all 0.3s ease;
             display: inline-flex;
@@ -524,15 +546,15 @@
         .firebase-dropdown-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 6px 12px;
+            padding: 4px 8px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 500;
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
             transition: all 0.3s ease;
         }
 
@@ -570,13 +592,13 @@
         }
 
         .firebase-dropdown-item {
-            padding: 10px 15px;
+            padding: 6px 10px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 11px;
             transition: background 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             border-bottom: 1px solid #f0f0f0;
         }
 
@@ -634,7 +656,13 @@
             }
 
             .table-wrapper {
-                overflow-x: scroll;
+                overflow-x: auto;
+                overflow-y: auto;
+            }
+            
+            .card {
+                height: auto;
+                max-height: calc(100vh - 150px);
             }
 
             th, td {
@@ -821,7 +849,7 @@
                                 <td>{{ c.email or 'N/A' }}</td>
                                 <td>
                                     <form method="POST" action="/update_subscription/{{ c._id }}" class="form-inline">
-                                        <select name="subscription_type" onchange="this.form.submit()" style="min-width: 100px;">
+                                        <select name="subscription_type" onchange="this.form.submit()" style="min-width: 90px; font-size: 11px; padding: 4px;">
                                             <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
                                             <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
                                         </select>
@@ -847,7 +875,7 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ c.system_type }}</td>
-                                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">{{ c.ha_url or 'N/A' }}</td>
+                                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.ha_url or 'N/A' }}</td>
                                 <td>
                                     <div class="token-cell">
                                         <span class="token-text">{{ c.ha_token[:20] if c.ha_token else 'N/A' }}{% if c.ha_token %}...{% endif %}</span>
@@ -880,7 +908,7 @@
                                             id="widget-select-{{ c._id }}"
                                             data-previous-value="{% if c.get('external_widget_disabled') %}disabled{% else %}enabled{% endif %}"
                                             onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.value, this)"
-                                            style="padding: 6px; font-size: 13px; border-radius: 6px; border: 2px solid #e0e0e0; min-width: 100px;">
+                                            style="padding: 4px; font-size: 11px; border-radius: 6px; border: 2px solid #e0e0e0; min-width: 90px;">
                                         <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
                                         <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
                                     </select>
