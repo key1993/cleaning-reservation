@@ -420,6 +420,35 @@ def confirm_payment():
                     {"$set": {"account_disabled": False}, "$unset": {"account_disabled_date": ""}}
                 )
         
+        # Re-enable widget if it was disabled
+        if client.get("external_widget_disabled", False):
+            clients_collection.update_one(
+                {"_id": ObjectId(client_id)},
+                {"$set": {"external_widget_disabled": False}}
+            )
+            # Send enable request to external widget
+            try:
+                ha_url = client.get("ha_url", "").rstrip("/")
+                ha_token = client.get("ha_token", "")
+                if ha_url and ha_token:
+                    widget_url = f"{ha_url}/api/widget/disable"
+                    widget_payload = {
+                        "client_id": str(client_id),
+                        "client_name": client.get("full_name", "Unknown"),
+                        "disabled": False,
+                        "ha_token": ha_token,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    requests.post(
+                        widget_url,
+                        json=widget_payload,
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
+                    print(f"✅ Widget enabled for {client.get('full_name')}")
+            except Exception as widget_error:
+                print(f"⚠️ Could not enable widget for {client.get('full_name')}: {widget_error}")
+        
         # Send WhatsApp confirmation message
         client_name = client.get("full_name", "Unknown")
         msg = (
@@ -511,23 +540,27 @@ def process_payment_reminders():
         send_whatsapp_message(msg)
         total_reminders += 1
         
-        # Disable Firebase account if payment is overdue and Firebase UID exists
+        # Disable Firebase account and external widget if payment is overdue and Firebase UID exists
         if firebase_uid and days_overdue > 0:
             # Only disable if not already marked as disabled in our system
             if not c.get("account_disabled", False):
                 if disable_firebase_user(firebase_uid):
-                    # Mark account as disabled in MongoDB
+                    # Mark account as disabled in MongoDB and disable external widget
                     clients_collection.update_one(
                         {"_id": c["_id"]},
-                        {"$set": {"account_disabled": True, "account_disabled_date": today.strftime("%Y-%m-%d")}}
+                        {"$set": {
+                            "account_disabled": True,
+                            "account_disabled_date": today.strftime("%Y-%m-%d"),
+                            "external_widget_disabled": True
+                        }}
                     )
                     disabled_count += 1
                     msg_disabled = (
-                        f"🔒 Account Disabled!\n"
+                        f"🔒 Account & Widget Disabled!\n"
                         f"👤 Client: {name}\n"
                         f"📱 Phone: {phone}\n"
                         f"⏰ Payment overdue by {days_overdue} day(s)\n"
-                        f"🔐 Firebase account has been disabled"
+                        f"🔐 Firebase account and external widget have been disabled"
                     )
                     send_whatsapp_message(msg_disabled)
     

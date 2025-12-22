@@ -804,6 +804,7 @@
                                 <th>HA Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
+                                <th>Firebase Actions</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -870,33 +871,8 @@
                                         {% if c.account_disabled_date %}
                                         <small style="font-size: 10px; color: #999; display: block; margin-bottom: 5px;">Since: {{ c.account_disabled_date }}</small>
                                         {% endif %}
-                                        <div class="firebase-actions-dropdown">
-                                            <button class="firebase-dropdown-btn" onclick="toggleFirebaseDropdown('{{ c._id }}')">
-                                                ⚙️ Firebase Actions ▼
-                                            </button>
-                                            <div id="firebase-dropdown-{{ c._id }}" class="firebase-dropdown-content">
-                                                {% if c.account_disabled %}
-                                                    <div class="firebase-dropdown-item success" onclick="enableAccount('{{ c._id }}', '{{ c.full_name }}')">
-                                                        ✅ Enable Account
-                                                    </div>
-                                                {% else %}
-                                                    <div class="firebase-dropdown-item warning" onclick="disableAccount('{{ c._id }}', '{{ c.full_name }}')">
-                                                        🔒 Disable Account
-                                                    </div>
-                                                {% endif %}
-                                                <div class="firebase-dropdown-item" onclick="resetPassword('{{ c._id }}', '{{ c.full_name }}')">
-                                                    🔑 Reset Password
-                                                </div>
-                                                <div class="firebase-dropdown-item danger" onclick="deleteFirebaseAccount('{{ c._id }}', '{{ c.full_name }}')">
-                                                    🗑️ Delete Account
-                                                </div>
-                                            </div>
-                                        </div>
                                     {% else %}
-                                        <span style="color: #666; font-size: 12px; display: block; margin-bottom: 5px;">⚠️ No Firebase UID</span>
-                                        <button onclick="searchFirebaseUser('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-primary">
-                                            🔗 Link by Email
-                                        </button>
+                                        <span style="color: #666; font-size: 12px;">⚠️ Not Linked</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -908,6 +884,32 @@
                                         <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
                                         <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
                                     </select>
+                                </td>
+                                <td>
+                                    {% if c.firebase_uid %}
+                                    <div class="firebase-actions-dropdown">
+                                        <button class="firebase-dropdown-btn" onclick="toggleFirebaseDropdown(event, '{{ c._id }}')">
+                                            Firebase Actions ▼
+                                        </button>
+                                        <div id="firebase-dropdown-{{ c._id }}" class="firebase-dropdown-content">
+                                            {% if c.account_disabled %}
+                                                <a href="#" onclick="event.preventDefault(); handleFirebaseAction('enable', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item success">✅ Enable Account</a>
+                                            {% else %}
+                                                <a href="#" onclick="event.preventDefault(); handleFirebaseAction('disable', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item warning">🔒 Disable Account</a>
+                                            {% endif %}
+                                            <a href="#" onclick="event.preventDefault(); handleFirebaseAction('reset_password', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item">🔑 Reset Password</a>
+                                            <a href="#" onclick="event.preventDefault(); handleFirebaseAction('delete', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item danger">🗑️ Delete Firebase Account</a>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                        {% if c.email %}
+                                        <button class="btn btn-sm btn-primary" onclick="autoLinkFirebase('{{ c._id }}', '{{ c.email }}', '{{ c.full_name }}')" style="font-size: 11px; padding: 4px 8px;">
+                                            🔗 Auto-Link
+                                        </button>
+                                        {% else %}
+                                        <span style="color: #999; font-size: 11px;">No email</span>
+                                        {% endif %}
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <div class="action-buttons-cell">
@@ -946,6 +948,30 @@
     <!-- JavaScript -->
     <script>
         let currentPaymentData = null;
+        let sessionTimeout = null;
+        const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+        // Session timeout management
+        function resetSessionTimeout() {
+            // Clear existing timeout
+            if (sessionTimeout) {
+                clearTimeout(sessionTimeout);
+            }
+            
+            // Set new timeout
+            sessionTimeout = setTimeout(() => {
+                alert('Your session has expired due to inactivity. You will be logged out.');
+                window.location.href = '/admin/logout';
+            }, SESSION_TIMEOUT_MS);
+        }
+
+        // Reset timeout on user activity
+        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, resetSessionTimeout, true);
+        });
+
+        // Initialize timeout when page loads
+        resetSessionTimeout();
 
         function showTab(tabId) {
             // Hide all tabs
@@ -1378,7 +1404,8 @@
             }, 3000);
         }
 
-        function toggleFirebaseDropdown(clientId) {
+        function toggleFirebaseDropdown(event, clientId) {
+            event.stopPropagation();
             // Close all other dropdowns
             document.querySelectorAll('.firebase-dropdown-content').forEach(dropdown => {
                 if (dropdown.id !== `firebase-dropdown-${clientId}`) {
@@ -1389,6 +1416,117 @@
             // Toggle current dropdown
             const dropdown = document.getElementById(`firebase-dropdown-${clientId}`);
             dropdown.classList.toggle('show');
+        }
+
+        function autoLinkFirebase(clientId, email, clientName) {
+            if (!confirm(`Auto-link Firebase account for ${clientName} using email: ${email}?`)) {
+                return;
+            }
+
+            fetch('/search_firebase_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email,
+                    client_id: clientId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ Firebase account linked successfully!\n\nEmail: ${data.email}\nUID: ${data.firebase_uid}\nStatus: ${data.disabled ? 'Disabled' : 'Active'}`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error linking Firebase account');
+            });
+        }
+
+        function handleFirebaseAction(action, clientId, clientName, firebaseUid, dropdownId) {
+            // Close dropdown
+            document.getElementById(dropdownId).classList.remove('show');
+
+            if (action === 'enable') {
+                if (!confirm(`Are you sure you want to enable the Firebase account for ${clientName}?`)) {
+                    return;
+                }
+                
+                fetch(`/enable_client_account/${clientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Account enabled successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error enabling account');
+                });
+            } else if (action === 'disable') {
+                if (!confirm(`Are you sure you want to disable the Firebase account for ${clientName}?`)) {
+                    return;
+                }
+                
+                fetch(`/disable_client_account/${clientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Account disabled successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error disabling account');
+                });
+            } else if (action === 'reset_password') {
+                resetPassword(clientId, clientName);
+            } else if (action === 'delete') {
+                if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+                    return;
+                }
+                
+                fetch(`/delete_client_firebase_account/${clientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Firebase account deleted successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting Firebase account');
+                });
+            }
         }
 
         // Close dropdowns when clicking outside
