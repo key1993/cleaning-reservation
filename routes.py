@@ -705,6 +705,38 @@ def update_client_firebase_uid(client_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@routes.route("/api/widget/status", methods=["GET"])
+def get_widget_status():
+    """Get external widget enabled/disabled status for a client"""
+    try:
+        # Get ha_token from query parameter or Authorization header
+        ha_token = request.args.get("ha_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+        
+        if not ha_token:
+            return jsonify({"success": False, "error": "ha_token is required. Provide it as query parameter 'ha_token' or in Authorization header as 'Bearer <token>'"}), 400
+        
+        # Find client by ha_token
+        client = clients_collection.find_one({"ha_token": ha_token})
+        
+        if not client:
+            return jsonify({"success": False, "error": "Client not found with the provided ha_token"}), 404
+        
+        # Get widget status (defaults to False/Enabled if not set)
+        is_disabled = client.get("external_widget_disabled", False)
+        
+        return jsonify({
+            "success": True,
+            "client_id": str(client["_id"]),
+            "client_name": client.get("full_name", "Unknown"),
+            "disabled": is_disabled,
+            "enabled": not is_disabled,
+            "status": "disabled" if is_disabled else "enabled",
+            "timestamp": datetime.utcnow().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes.route("/toggle_external_widget/<client_id>", methods=["POST"])
 def toggle_external_widget(client_id):
     """Toggle external widget disable/enable status and send API request to widget"""

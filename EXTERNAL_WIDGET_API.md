@@ -1,7 +1,9 @@
 # External Widget API Integration Guide
 
 ## Overview
-This document describes the API request format that is sent from the Admin Panel to your external widget when toggling the "Disable External Widget" feature.
+This document describes:
+1. The API request format sent from the Admin Panel to your external widget when toggling the "Disable External Widget" feature
+2. How your external widget can query its current enabled/disabled status from the server
 
 ## API Request Format
 
@@ -181,6 +183,197 @@ app.post('/api/widget/disable', (req, res) => {
 4. **Idempotency**: Your endpoint should be idempotent - calling it multiple times with the same `disabled` value should have the same effect.
 
 5. **Testing**: You can test your endpoint using the curl examples above or by toggling the checkbox in the admin panel.
+
+---
+
+## Querying Widget Status (For Your External Widget)
+
+Your external widget can query its current enabled/disabled status from the server using a GET request.
+
+### Endpoint
+
+**URL:** `GET /api/widget/status`
+
+**Base URL:** Your server's base URL (e.g., `https://your-server.com` or `https://your-server.com:5000`)
+
+### Authentication
+
+The widget must authenticate using the `ha_token` (Home Assistant token) associated with the client. You can provide it in two ways:
+
+**Option 1: Query Parameter (Recommended)**
+```
+GET /api/widget/status?ha_token=YOUR_HA_TOKEN
+```
+
+**Option 2: Authorization Header**
+```
+GET /api/widget/status
+Authorization: Bearer YOUR_HA_TOKEN
+```
+
+### Full API Request Examples
+
+**Using Query Parameter:**
+```bash
+curl -X GET "https://your-server.com/api/widget/status?ha_token=eyJ0eXAiOiJKV1QiLCJhbGc..." \
+  -H "Content-Type: application/json"
+```
+
+**Using Authorization Header:**
+```bash
+curl -X GET "https://your-server.com/api/widget/status" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc..."
+```
+
+**JavaScript/Fetch Example:**
+```javascript
+const haToken = 'your-home-assistant-token';
+const serverUrl = 'https://your-server.com';
+
+// Using query parameter
+fetch(`${serverUrl}/api/widget/status?ha_token=${haToken}`)
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      if (data.disabled) {
+        console.log('Widget is DISABLED');
+        // Hide or disable your widget UI
+      } else {
+        console.log('Widget is ENABLED');
+        // Show or enable your widget UI
+      }
+    } else {
+      console.error('Error:', data.error);
+    }
+  })
+  .catch(error => console.error('Request failed:', error));
+
+// Using Authorization header
+fetch(`${serverUrl}/api/widget/status`, {
+  headers: {
+    'Authorization': `Bearer ${haToken}`,
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => response.json())
+  .then(data => {
+    // Handle response
+  });
+```
+
+**Python Example:**
+```python
+import requests
+
+ha_token = "your-home-assistant-token"
+server_url = "https://your-server.com"
+
+# Using query parameter
+response = requests.get(
+    f"{server_url}/api/widget/status",
+    params={"ha_token": ha_token}
+)
+
+# Using Authorization header
+response = requests.get(
+    f"{server_url}/api/widget/status",
+    headers={"Authorization": f"Bearer {ha_token}"}
+)
+
+data = response.json()
+
+if data.get("success"):
+    if data.get("disabled"):
+        print("Widget is DISABLED")
+        # Disable your widget
+    else:
+        print("Widget is ENABLED")
+        # Enable your widget
+else:
+    print(f"Error: {data.get('error')}")
+```
+
+### Response Format
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "client_id": "507f1f77bcf86cd799439011",
+  "client_name": "John Doe",
+  "disabled": false,
+  "enabled": true,
+  "status": "enabled",
+  "timestamp": "2024-01-15T10:30:00.123456"
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "error": "ha_token is required. Provide it as query parameter 'ha_token' or in Authorization header as 'Bearer <token>'"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "success": false,
+  "error": "Client not found with the provided ha_token"
+}
+```
+
+### Response Field Descriptions
+
+- **success** (boolean): Whether the request was successful
+- **client_id** (string): The MongoDB ObjectId of the client record
+- **client_name** (string): The full name of the client
+- **disabled** (boolean): `true` if widget is disabled, `false` if enabled
+- **enabled** (boolean): `true` if widget is enabled, `false` if disabled (opposite of `disabled`)
+- **status** (string): Either `"enabled"` or `"disabled"` (human-readable status)
+- **timestamp** (string): ISO 8601 formatted UTC timestamp of when the status was queried
+
+### Recommended Usage Pattern
+
+Your widget should periodically check its status (e.g., every 30-60 seconds) to ensure it stays in sync with the admin panel:
+
+```javascript
+// Check widget status every 30 seconds
+setInterval(async () => {
+  try {
+    const response = await fetch(`${serverUrl}/api/widget/status?ha_token=${haToken}`);
+    const data = await response.json();
+    
+    if (data.success) {
+      updateWidgetVisibility(data.disabled);
+    }
+  } catch (error) {
+    console.error('Failed to check widget status:', error);
+  }
+}, 30000); // Check every 30 seconds
+
+function updateWidgetVisibility(isDisabled) {
+  const widgetElement = document.getElementById('your-widget');
+  if (isDisabled) {
+    widgetElement.style.display = 'none';
+    // Or disable widget functionality
+  } else {
+    widgetElement.style.display = 'block';
+    // Or enable widget functionality
+  }
+}
+```
+
+### HTTP Status Codes
+
+- `200 OK`: Request successful, status returned
+- `400 Bad Request`: Missing or invalid `ha_token` parameter
+- `404 Not Found`: No client found with the provided `ha_token`
+- `500 Internal Server Error`: Server error
+
+---
 
 ## Admin Panel Usage
 
