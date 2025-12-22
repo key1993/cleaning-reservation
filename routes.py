@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, render_template, sessio
 from db import reservations_collection, clients_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
-from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email
+from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password
 
 import requests
 import urllib.parse
@@ -691,6 +691,35 @@ def update_client_firebase_uid(client_id):
         
         return jsonify({"success": True, "message": "Firebase UID updated successfully"}), 200
         
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/reset_client_password/<client_id>", methods=["POST"])
+def reset_client_password(client_id):
+    """Reset password for a client's Firebase account"""
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        firebase_uid = client.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
+        
+        # Reset password
+        temp_password = reset_firebase_user_password(firebase_uid)
+        
+        if temp_password:
+            client_name = client.get("full_name", "Unknown")
+            return jsonify({
+                "success": True,
+                "message": f"Password reset successfully for {client_name}",
+                "temp_password": temp_password,
+                "note": "Please share this temporary password with the user. They should change it after logging in."
+            }), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to reset password"}), 500
+            
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

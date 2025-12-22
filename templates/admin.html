@@ -515,6 +515,108 @@
             }
         }
 
+        /* Firebase Actions Dropdown */
+        .firebase-actions-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .firebase-dropdown-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .firebase-dropdown-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .firebase-dropdown-content {
+            display: none;
+            position: absolute;
+            background: white;
+            min-width: 200px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            border-radius: 8px;
+            z-index: 1000;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .firebase-dropdown-content.show {
+            display: block;
+            animation: fadeInDown 0.2s ease;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .firebase-dropdown-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .firebase-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .firebase-dropdown-item:hover {
+            background: #f8f9fa;
+        }
+
+        .firebase-dropdown-item.danger {
+            color: #dc3545;
+        }
+
+        .firebase-dropdown-item.danger:hover {
+            background: #fff5f5;
+        }
+
+        .firebase-dropdown-item.success {
+            color: #28a745;
+        }
+
+        .firebase-dropdown-item.success:hover {
+            background: #f0fff4;
+        }
+
+        .firebase-dropdown-item.warning {
+            color: #ffc107;
+        }
+
+        .firebase-dropdown-item.warning:hover {
+            background: #fffef0;
+        }
+
+        .firebase-status-badge {
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .container {
@@ -757,17 +859,43 @@
                                 </td>
                                 <td>
                                     {% if c.firebase_uid %}
-                                        {% if c.account_disabled %}
-                                            <span class="badge badge-disabled">🔒 Disabled</span>
-                                            <br><small style="font-size: 11px;">Since: {{ c.account_disabled_date if c.account_disabled_date else 'N/A' }}</small>
-                                        {% else %}
-                                            <span class="badge badge-active">✅ Active</span>
+                                        <div style="margin-bottom: 5px;">
+                                            {% if c.account_disabled %}
+                                                <span class="badge badge-disabled firebase-status-badge">🔒 Disabled</span>
+                                            {% else %}
+                                                <span class="badge badge-active firebase-status-badge">✅ Active</span>
+                                            {% endif %}
+                                        </div>
+                                        <small style="font-size: 10px; color: #666; display: block; margin-bottom: 5px;">UID: {{ c.firebase_uid[:8] }}...</small>
+                                        {% if c.account_disabled_date %}
+                                        <small style="font-size: 10px; color: #999; display: block; margin-bottom: 5px;">Since: {{ c.account_disabled_date }}</small>
                                         {% endif %}
-                                        <br><small style="font-size: 11px; color: #666;">UID: {{ c.firebase_uid[:8] }}...</small>
+                                        <div class="firebase-actions-dropdown">
+                                            <button class="firebase-dropdown-btn" onclick="toggleFirebaseDropdown('{{ c._id }}')">
+                                                ⚙️ Firebase Actions ▼
+                                            </button>
+                                            <div id="firebase-dropdown-{{ c._id }}" class="firebase-dropdown-content">
+                                                {% if c.account_disabled %}
+                                                    <div class="firebase-dropdown-item success" onclick="enableAccount('{{ c._id }}', '{{ c.full_name }}')">
+                                                        ✅ Enable Account
+                                                    </div>
+                                                {% else %}
+                                                    <div class="firebase-dropdown-item warning" onclick="disableAccount('{{ c._id }}', '{{ c.full_name }}')">
+                                                        🔒 Disable Account
+                                                    </div>
+                                                {% endif %}
+                                                <div class="firebase-dropdown-item" onclick="resetPassword('{{ c._id }}', '{{ c.full_name }}')">
+                                                    🔑 Reset Password
+                                                </div>
+                                                <div class="firebase-dropdown-item danger" onclick="deleteFirebaseAccount('{{ c._id }}', '{{ c.full_name }}')">
+                                                    🗑️ Delete Account
+                                                </div>
+                                            </div>
+                                        </div>
                                     {% else %}
-                                        <span style="color: #666; font-size: 12px;">⚠️ No Firebase UID</span>
-                                        <br><button onclick="searchFirebaseUser('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-primary" style="margin-top: 5px;">
-                                            Link by Email
+                                        <span style="color: #666; font-size: 12px; display: block; margin-bottom: 5px;">⚠️ No Firebase UID</span>
+                                        <button onclick="searchFirebaseUser('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-primary">
+                                            🔗 Link by Email
                                         </button>
                                     {% endif %}
                                 </td>
@@ -783,20 +911,6 @@
                                 </td>
                                 <td>
                                     <div class="action-buttons-cell">
-                                        {% if c.firebase_uid %}
-                                            {% if c.account_disabled %}
-                                                <button onclick="enableAccount('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-success">
-                                                    ✅ Enable
-                                                </button>
-                                            {% else %}
-                                                <button onclick="disableAccount('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-warning">
-                                                    🔒 Disable
-                                                </button>
-                                            {% endif %}
-                                            <button onclick="deleteFirebaseAccount('{{ c._id }}', '{{ c.full_name }}')" class="btn btn-sm btn-danger">
-                                                🗑️ Delete Firebase
-                                            </button>
-                                        {% endif %}
                                         <form method="POST" action="/delete_client/{{ c._id }}" class="form-inline" onsubmit="return confirm('Delete this client?');">
                                             <button type="submit" class="btn btn-sm btn-secondary">
                                                 🗑️ Delete Client
@@ -1040,6 +1154,9 @@
 
         // Firebase account management functions
         function disableAccount(clientId, clientName) {
+            // Close dropdown
+            document.getElementById(`firebase-dropdown-${clientId}`).classList.remove('show');
+
             if (!confirm(`Are you sure you want to disable the Firebase account for ${clientName}?`)) {
                 return;
             }
@@ -1066,6 +1183,9 @@
         }
 
         function enableAccount(clientId, clientName) {
+            // Close dropdown
+            document.getElementById(`firebase-dropdown-${clientId}`).classList.remove('show');
+
             if (!confirm(`Are you sure you want to enable the Firebase account for ${clientName}?`)) {
                 return;
             }
@@ -1092,6 +1212,9 @@
         }
 
         function deleteFirebaseAccount(clientId, clientName) {
+            // Close dropdown
+            document.getElementById(`firebase-dropdown-${clientId}`).classList.remove('show');
+
             if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
                 return;
             }
@@ -1253,6 +1376,58 @@
                     toast.remove();
                 }, 300);
             }, 3000);
+        }
+
+        function toggleFirebaseDropdown(clientId) {
+            // Close all other dropdowns
+            document.querySelectorAll('.firebase-dropdown-content').forEach(dropdown => {
+                if (dropdown.id !== `firebase-dropdown-${clientId}`) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Toggle current dropdown
+            const dropdown = document.getElementById(`firebase-dropdown-${clientId}`);
+            dropdown.classList.toggle('show');
+        }
+
+        // Close dropdowns when clicking outside
+        window.addEventListener('click', function(event) {
+            if (!event.target.closest('.firebase-actions-dropdown')) {
+                document.querySelectorAll('.firebase-dropdown-content').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+            }
+        });
+
+        function resetPassword(clientId, clientName) {
+            // Close dropdown
+            document.getElementById(`firebase-dropdown-${clientId}`).classList.remove('show');
+
+            if (!confirm(`Are you sure you want to reset the password for ${clientName}?\n\nA temporary password will be generated and displayed.`)) {
+                return;
+            }
+
+            fetch(`/reset_client_password/${clientId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const message = `Password reset successful!\n\nTemporary Password: ${data.temp_password}\n\nPlease share this password with ${clientName}. They should change it after logging in.`;
+                    alert(message);
+                    showToast('Password reset successfully!');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error resetting password');
+            });
         }
     </script>
 </body>

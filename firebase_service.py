@@ -226,3 +226,47 @@ def create_firebase_user(email, password, display_name=None, phone_number=None):
         print(f"❌ Error creating Firebase user: {e}")
         return None
 
+def reset_firebase_user_password(firebase_uid):
+    """
+    Generate a password reset link for a Firebase user
+    
+    Args:
+        firebase_uid: Firebase user UID
+        
+    Returns:
+        str: Password reset link or None if failed
+    """
+    try:
+        if firebase_app is None:
+            initialize_firebase()
+        
+        if firebase_app is None:
+            print("Firebase not initialized. Cannot reset password.")
+            return None
+        
+        # Get user to verify they exist
+        user = auth.get_user(firebase_uid)
+        
+        # Generate password reset link
+        # Note: This requires Firebase Admin SDK with proper configuration
+        # For email-based reset, you would typically use Firebase Auth REST API
+        # or send a password reset email through Firebase Console
+        
+        # Alternative: Generate a temporary password and update user
+        import secrets
+        import string
+        temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+        
+        # Update user with temporary password
+        auth.update_user(firebase_uid, password=temp_password)
+        
+        print(f"✅ Password reset for Firebase user {firebase_uid}")
+        return temp_password
+        
+    except auth.UserNotFoundError:
+        print(f"⚠️ Firebase user {firebase_uid} not found")
+        return None
+    except Exception as e:
+        print(f"❌ Error resetting password for Firebase user {firebase_uid}: {e}")
+        return None
+
