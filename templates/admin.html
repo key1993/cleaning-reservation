@@ -855,7 +855,12 @@
                                         </select>
                                     </form>
                                 </td>
-                                <td>{{ c.next_payment_date }}</td>
+                                <td>
+                                    {{ c.next_payment_date }}
+                                    <br>
+                                    <input type="checkbox" class="test-overdue-checkbox" data-client-id="{{ c._id }}" data-client-name="{{ c.full_name }}" onchange="simulateOverduePayment(this)" style="cursor: pointer; margin-top: 5px;">
+                                    <br><small style="color: #ff6b6b; font-size: 9px;">TEST: Simulate Overdue</small>
+                                </td>
                                 <td>
                                     <input type="checkbox" class="payment-checkbox" onchange="confirmPayment('{{ c._id }}', '{{ c.full_name }}', '{{ c.subscription_type }}', this.checked)" style="cursor: pointer;">
                                     <br><small>Confirm</small>
@@ -1069,6 +1074,44 @@
             
             const checkboxes = document.querySelectorAll('.payment-checkbox:checked');
             checkboxes.forEach(cb => cb.checked = false);
+        }
+
+        function simulateOverduePayment(checkbox) {
+            if (!checkbox.checked) return;
+            
+            const clientId = checkbox.getAttribute('data-client-id');
+            const clientName = checkbox.getAttribute('data-client-name');
+            
+            if (!confirm(`⚠️ TEST MODE ⚠️\n\nThis will simulate that ${clientName}'s payment was not paid.\n\nThe payment date will be set to yesterday, and after 3 minutes the system will:\n- Send overdue payment notifications\n- Disable Firebase account\n- Disable external widget\n\nContinue?`)) {
+                // Uncheck the checkbox if user cancels
+                checkbox.checked = false;
+                return;
+            }
+            
+            fetch('/simulate_overdue_payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    clientId: clientId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ Test mode activated!\n\n${data.message}\n\nThe overdue behavior will trigger automatically in 3 minutes.`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                    checkbox.checked = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error simulating overdue payment');
+                checkbox.checked = false;
+            });
         }
 
         window.onclick = function(event) {

@@ -7,6 +7,7 @@ from firebase_service import disable_firebase_user, enable_firebase_user, delete
 import requests
 import urllib.parse
 import os
+import threading
 from datetime import datetime, timedelta
 
 def login_required(f):
@@ -582,6 +583,133 @@ def check_payment_reminders():
 def send_payment_reminders():
     """Manual trigger for payment reminders (for testing)"""
     return check_payment_reminders()
+
+def process_overdue_payment_for_client(client_id):
+    """
+    Process overdue payment behavior for a specific client.
+    This simulates what happens when payment is overdue and not confirmed.
+    """
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            print(f"❌ Client not found: {client_id}")
+            return
+        
+        today = datetime.now()
+        next_payment = client.get("next_payment_date", "Unknown")
+        name = client.get("full_name", "Unknown")
+        phone = client.get("phone", "Unknown")
+        subscription_type = client.get("subscription_type", "Unknown")
+        firebase_uid = client.get("firebase_uid")
+        
+        try:
+            payment_date = datetime.strptime(next_payment, "%Y-%m-%d")
+            days_overdue = (today - payment_date).days
+        except:
+            days_overdue = 1
+        
+        # Send overdue payment reminder
+        msg = (
+            f"🚨 PAYMENT OVERDUE!\n"
+            f"👤 Client: {name}\n"
+            f"📱 Phone: {phone}\n"
+            f"💰 Subscription: {subscription_type.capitalize()}\n"
+            f"📅 Due Date: {next_payment}\n"
+            f"⏰ Overdue by: {days_overdue} day(s)"
+        )
+        send_whatsapp_message(msg)
+        
+        # Disable Firebase account and external widget if payment is overdue and Firebase UID exists
+        if firebase_uid and days_overdue > 0:
+            # Only disable if not already marked as disabled in our system
+            if not client.get("account_disabled", False):
+                if disable_firebase_user(firebase_uid):
+                    # Mark account as disabled in MongoDB and disable external widget
+                    clients_collection.update_one(
+                        {"_id": ObjectId(client_id)},
+                        {"$set": {
+                            "account_disabled": True,
+                            "account_disabled_date": today.strftime("%Y-%m-%d"),
+                            "external_widget_disabled": True
+                        }}
+                    )
+                    
+                    # Disable external widget
+                    try:
+                        ha_url = client.get("ha_url", "").rstrip("/")
+                        ha_token = client.get("ha_token", "")
+                        if ha_url and ha_token:
+                            widget_url = f"{ha_url}/api/widget/disable"
+                            widget_payload = {
+                                "client_id": str(client_id),
+                                "client_name": name,
+                                "disabled": True,
+                                "ha_token": ha_token,
+                                "timestamp": datetime.utcnow().isoformat()
+                            }
+                            requests.post(
+                                widget_url,
+                                json=widget_payload,
+                                headers={"Content-Type": "application/json"},
+                                timeout=10
+                            )
+                            print(f"✅ Widget disabled for {name}")
+                    except Exception as widget_error:
+                        print(f"⚠️ Could not disable widget for {name}: {widget_error}")
+                    
+                    msg_disabled = (
+                        f"🔒 Account & Widget Disabled!\n"
+                        f"👤 Client: {name}\n"
+                        f"📱 Phone: {phone}\n"
+                        f"⏰ Payment overdue by {days_overdue} day(s)\n"
+                        f"🔐 Firebase account and external widget have been disabled"
+                    )
+                    send_whatsapp_message(msg_disabled)
+                    print(f"✅ Processed overdue payment for {name}")
+        
+    except Exception as e:
+        print(f"❌ Error processing overdue payment for client {client_id}: {e}")
+
+@routes.route("/simulate_overdue_payment", methods=["POST"])
+def simulate_overdue_payment():
+    """
+    TEMPORARY TEST FEATURE: Simulate that payment was not paid.
+    Sets next_payment_date to yesterday and schedules overdue behavior after 3 minutes.
+    """
+    data = request.json
+    client_id = data.get("clientId")
+    
+    if not client_id:
+        return jsonify({"success": False, "error": "Missing client ID"}), 400
+    
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+        
+        # Set next_payment_date to yesterday to make it overdue
+        yesterday = datetime.now() - timedelta(days=1)
+        yesterday_str = yesterday.strftime("%Y-%m-%d")
+        
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {"next_payment_date": yesterday_str}}
+        )
+        
+        # Schedule the overdue payment behavior after 3 minutes (180 seconds)
+        timer = threading.Timer(180.0, process_overdue_payment_for_client, args=[client_id])
+        timer.start()
+        
+        client_name = client.get("full_name", "Unknown")
+        print(f"⏰ Scheduled overdue payment processing for {client_name} in 3 minutes")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Payment date set to yesterday. Overdue behavior will trigger in 3 minutes for {client_name}."
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @routes.route("/disable_client_account/<client_id>", methods=["POST"])
 def disable_client_account(client_id):
