@@ -202,6 +202,9 @@ def get_available_slots():
             date_str = date_obj.strftime("%Y-%m-%d")
             time_slots = get_time_slots_for_date(date_obj)
             
+            # Get all slots for this date (need to define before day disabled check)
+            all_slots = time_slots['first'] + time_slots['second']
+            
             # Get reserved slots for this date
             reserved_for_date = reserved_slots.get(date_str, set())
             
@@ -223,9 +226,6 @@ def get_available_slots():
                     "day_disabled": True
                 })
                 continue
-            
-            # Get all slots for this date
-            all_slots = time_slots['first'] + time_slots['second']
             
             # Find available slots (not in reserved list and not disabled)
             available = []
