@@ -124,7 +124,7 @@ def get_reservations_by_date(date):
 
 @routes.route("/api/available_slots", methods=["GET"])
 def get_available_slots():
-    """Get available time slots for the next 5 working days (Monday-Saturday, excluding Friday)"""
+    """Get available time slots for the next 6 working days (Sunday-Saturday, excluding Friday)"""
     try:
         def is_summer(date_obj):
             """Check if date is in summer period (April-September)"""
@@ -146,25 +146,25 @@ def get_available_slots():
                     'second': ['2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM']
                 }
         
-        def get_next_5_working_days():
-            """Get next 5 working days (Monday-Saturday, excluding Friday)"""
+        def get_next_6_working_days():
+            """Get next 6 working days (Sunday-Saturday, excluding Friday)"""
             dates = []
             today = datetime.now().date()
             current_date = today
             
             days_found = 0
-            while days_found < 5:
+            while days_found < 6:
                 day_of_week = current_date.weekday()  # 0 = Monday, 1 = Tuesday, 2 = Wednesday, 3 = Thursday, 4 = Friday, 5 = Saturday, 6 = Sunday
-                # Skip Sunday (6) and Friday (4), include Monday-Thursday and Saturday
-                if day_of_week != 6 and day_of_week != 4:
+                # Skip Friday (4), include Sunday (6), Monday-Thursday (0-3), and Saturday (5)
+                if day_of_week != 4:  # Only exclude Friday
                     dates.append(current_date)
                     days_found += 1
                 current_date = current_date + timedelta(days=1)
             
             return dates
         
-        # Get next 5 working days
-        working_days = get_next_5_working_days()
+        # Get next 6 working days
+        working_days = get_next_6_working_days()
         
         # Get all reservations for these dates
         date_strings = [date.strftime("%Y-%m-%d") for date in working_days]

@@ -1876,8 +1876,8 @@
             return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
         }
 
-        function getNext5WorkingDays() {
-            // Get next 5 working days (Monday-Saturday, excluding Friday)
+        function getNext6WorkingDays() {
+            // Get next 6 working days (Sunday-Saturday, excluding Friday)
             const dates = [];
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Reset time to start of day
@@ -1885,11 +1885,11 @@
             let currentDate = new Date(today);
             let daysFound = 0;
             
-            while (daysFound < 5) {
+            while (daysFound < 6) {
                 const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
                 
-                // Skip Sunday (0) and Friday (5), include Monday-Saturday
-                if (dayOfWeek !== 0 && dayOfWeek !== 5) {
+                // Skip Friday (5), include Sunday (0), Monday-Thursday (1-4), and Saturday (6)
+                if (dayOfWeek !== 5) {  // Only exclude Friday
                     dates.push(new Date(currentDate));
                     daysFound++;
                 }
@@ -1902,11 +1902,11 @@
         }
 
         function renderCalendar() {
-            // Update header to show "Next 5 Days" instead of month
-            document.getElementById('calendarMonthYear').textContent = 'Next 5 Working Days (Monday-Saturday, Friday Off)';
+            // Update header to show "Next 6 Days" instead of month
+            document.getElementById('calendarMonthYear').textContent = 'Next 6 Working Days (Sunday-Saturday, Friday Off)';
             
-            // Get next 5 working days (Monday-Saturday, excluding Friday)
-            const dates = getNext5WorkingDays();
+            // Get next 6 working days (Sunday-Saturday, excluding Friday)
+            const dates = getNext6WorkingDays();
             
             // Render calendar grid
             const grid = document.getElementById('calendarGrid');
