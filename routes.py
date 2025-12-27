@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect, render_template, session
-from db import reservations_collection, clients_collection, db
+from db import reservations_collection, clients_collection, disabled_slots_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
 from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password
@@ -55,6 +55,22 @@ def create_reservation():
     is_valid, msg = validate_reservation(data)
     if not is_valid:
         return jsonify({"error": msg}), 400
+
+    # Check if day is disabled
+    day_disabled = disabled_slots_collection.find_one({
+        "date": data["date"],
+        "time_slot": ""
+    })
+    if day_disabled:
+        return jsonify({"error": "This day is disabled for bookings"}), 403
+
+    # Check if specific time slot is disabled
+    slot_disabled = disabled_slots_collection.find_one({
+        "date": data["date"],
+        "time_slot": data["time_slot"]
+    })
+    if slot_disabled:
+        return jsonify({"error": "This time slot is disabled for bookings"}), 403
 
     conflict = reservations_collection.find_one({
         "date": data["date"],
@@ -154,6 +170,9 @@ def get_available_slots():
         date_strings = [date.strftime("%Y-%m-%d") for date in working_days]
         reservations = list(reservations_collection.find({"date": {"$in": date_strings}}))
         
+        # Get all disabled slots for these dates
+        disabled_slots = list(disabled_slots_collection.find({"date": {"$in": date_strings}}))
+        
         # Create a map of reserved slots by date
         reserved_slots = {}
         for res in reservations:
@@ -164,29 +183,68 @@ def get_available_slots():
                     reserved_slots[date_str] = set()
                 reserved_slots[date_str].add(time_slot)
         
+        # Create a map of disabled slots by date
+        disabled_slots_map = {}
+        for disabled in disabled_slots:
+            date_str = disabled.get("date")
+            time_slot = disabled.get("time_slot")  # Empty string means whole day is disabled
+            if date_str:
+                if date_str not in disabled_slots_map:
+                    disabled_slots_map[date_str] = {"day_disabled": False, "slots": set()}
+                if time_slot == "" or time_slot is None:
+                    disabled_slots_map[date_str]["day_disabled"] = True
+                else:
+                    disabled_slots_map[date_str]["slots"].add(time_slot.strip())
+        
         # Build response with available slots
         available_slots = []
         for date_obj in working_days:
             date_str = date_obj.strftime("%Y-%m-%d")
             time_slots = get_time_slots_for_date(date_obj)
             
-            # Get reserved slots for this date (normalize for comparison)
+            # Get reserved slots for this date
             reserved_for_date = reserved_slots.get(date_str, set())
+            
+            # Get disabled slots for this date
+            disabled_for_date = disabled_slots_map.get(date_str, {"day_disabled": False, "slots": set()})
+            day_is_disabled = disabled_for_date["day_disabled"]
+            disabled_slots_set = disabled_for_date["slots"]
+            
+            # If day is disabled, skip all slots
+            if day_is_disabled:
+                available_slots.append({
+                    "date": date_str,
+                    "date_display": date_obj.strftime("%A, %B %d, %Y"),
+                    "day_name": date_obj.strftime("%A"),
+                    "season": "summer" if is_summer(date_obj) else "winter",
+                    "available_slots": [],
+                    "all_slots": all_slots,
+                    "reserved_slots": list(reserved_for_date) if date_str in reserved_slots else [],
+                    "day_disabled": True
+                })
+                continue
             
             # Get all slots for this date
             all_slots = time_slots['first'] + time_slots['second']
             
-            # Find available slots (not in reserved list)
+            # Find available slots (not in reserved list and not disabled)
             available = []
             for slot in all_slots:
-                # Check if slot is reserved (try both original format and normalized)
+                # Check if slot is disabled
+                is_disabled = False
+                for disabled_slot in disabled_slots_set:
+                    if disabled_slot.strip().upper() == slot.upper() or disabled_slot.strip() == slot:
+                        is_disabled = True
+                        break
+                
+                # Check if slot is reserved
                 is_reserved = False
                 for reserved in reserved_for_date:
                     if reserved.strip().upper() == slot.upper() or reserved.strip() == slot:
                         is_reserved = True
                         break
                 
-                if not is_reserved:
+                if not is_disabled and not is_reserved:
                     available.append(slot)
             
             available_slots.append({
@@ -206,6 +264,74 @@ def get_available_slots():
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/api/toggle_slot", methods=["POST"])
+def toggle_slot():
+    """Disable or enable a time slot (or whole day if time_slot is not provided)"""
+    try:
+        data = request.json
+        date = data.get("date")
+        time_slot = data.get("time_slot")  # Optional - if empty string or None, whole day is toggled
+        disabled = data.get("disabled", True)  # True to disable, False to enable
+        
+        if not date:
+            return jsonify({"success": False, "error": "Date is required"}), 400
+        
+        # Determine if this is a whole day toggle
+        is_whole_day = not time_slot or time_slot == ""
+        
+        if disabled:
+            # Disable the slot
+            if is_whole_day:
+                # Disable whole day (use empty string to represent whole day)
+                disabled_slots_collection.update_one(
+                    {"date": date, "time_slot": ""},
+                    {"$set": {"date": date, "time_slot": "", "disabled_at": datetime.utcnow()}},
+                    upsert=True
+                )
+            else:
+                # Disable specific time slot
+                disabled_slots_collection.update_one(
+                    {"date": date, "time_slot": time_slot},
+                    {"$set": {"date": date, "time_slot": time_slot, "disabled_at": datetime.utcnow()}},
+                    upsert=True
+                )
+        else:
+            # Enable the slot (remove from disabled collection)
+            if is_whole_day:
+                # Enable whole day (remove the whole day disabled entry)
+                disabled_slots_collection.delete_one({"date": date, "time_slot": ""})
+            else:
+                disabled_slots_collection.delete_one({"date": date, "time_slot": time_slot})
+        
+        return jsonify({
+            "success": True,
+            "message": f"Slot {'disabled' if disabled else 'enabled'} successfully"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@routes.route("/api/disabled_slots/<date>", methods=["GET"])
+def get_disabled_slots(date):
+    """Get disabled slots for a specific date"""
+    try:
+        disabled = list(disabled_slots_collection.find({"date": date}))
+        result = {
+            "day_disabled": False,
+            "disabled_slots": []
+        }
+        
+        for item in disabled:
+            slot = item.get("time_slot")
+            if slot == "" or slot is None:
+                result["day_disabled"] = True
+            else:
+                result["disabled_slots"].append(slot)
+        
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @routes.route('/update_status', methods=['POST'])
 def update_status():

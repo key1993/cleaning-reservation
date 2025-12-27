@@ -12,3 +12,4 @@ db = client["cleaning"]
 # Collections
 reservations_collection = db["reservations"]
 clients_collection = db["clients"]
+disabled_slots_collection = db["disabled_slots"]

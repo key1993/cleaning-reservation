@@ -532,6 +532,28 @@
             border-color: #28a745;
         }
 
+        .time-slot.disabled {
+            color: #999;
+            background: #f0f0f0;
+            border-color: #ccc;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .time-slot.disabled::after {
+            content: '🚫';
+            margin-left: 5px;
+        }
+
+        .time-slot.clickable {
+            cursor: pointer;
+        }
+
+        .time-slot.clickable:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
         .no-slots-message {
             text-align: center;
             color: #999;
@@ -1937,14 +1959,16 @@
                 container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }, 100);
             
-            fetch(`/reservations/by_date/${dateStr}`)
-                .then(response => response.json())
-                .then(reservations => {
-                    displayTimeSlots(date, reservations);
+            Promise.all([
+                fetch(`/reservations/by_date/${dateStr}`).then(r => r.json()),
+                fetch(`/api/disabled_slots/${dateStr}`).then(r => r.json())
+            ])
+                .then(([reservations, disabledData]) => {
+                    displayTimeSlots(date, reservations, disabledData);
                 })
                 .catch(error => {
-                    console.error('Error loading reservations:', error);
-                    grid.innerHTML = '<div class="no-slots-message">Error loading reservations</div>';
+                    console.error('Error loading data:', error);
+                    grid.innerHTML = '<div class="no-slots-message">Error loading data</div>';
                 });
         }
 
@@ -1953,10 +1977,73 @@
             return slot.toString().trim().toUpperCase().replace(/\s+/g, ' ');
         }
 
-        function displayTimeSlots(date, reservations) {
+        function toggleSlot(date, timeSlot, isDisabled) {
+            const dateStr = formatDate(date);
+            
+            fetch('/api/toggle_slot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    date: dateStr,
+                    time_slot: timeSlot,
+                    disabled: !isDisabled
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload the day's reservations and disabled slots
+                    loadDayReservations(date);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling slot:', error);
+                alert('Error toggling slot');
+            });
+        }
+
+        function toggleDay(date, isDisabled) {
+            const dateStr = formatDate(date);
+            
+            fetch('/api/toggle_slot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    date: dateStr,
+                    time_slot: "",  // Empty string indicates whole day
+                    disabled: !isDisabled
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload the day's reservations and disabled slots
+                    loadDayReservations(date);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling day:', error);
+                alert('Error toggling day');
+            });
+        }
+
+        function displayTimeSlots(date, reservations, disabledData) {
             const timeSlots = getTimeSlots(date);
             const grid = document.getElementById('timeSlotsGrid');
             const isSummerTime = isSummer(date);
+            const dateStr = formatDate(date);
+            
+            // Get disabled slots info
+            const dayDisabled = disabledData.day_disabled || false;
+            const disabledSlotsSet = new Set((disabledData.disabled_slots || []).map(s => normalizeTimeSlot(s)));
             
             // Create a map of taken slots (pending or confirmed) by time slot (normalized)
             const takenSlots = new Set();
@@ -1970,22 +2057,46 @@
             
             grid.innerHTML = '';
             
+            // Add day toggle button
+            const dayToggleDiv = document.createElement('div');
+            dayToggleDiv.style.cssText = 'margin-bottom: 15px; text-align: center;';
+            const dayToggleBtn = document.createElement('button');
+            dayToggleBtn.className = 'btn ' + (dayDisabled ? 'btn-danger' : 'btn-success');
+            dayToggleBtn.textContent = dayDisabled ? '🚫 Day Disabled - Click to Enable' : '✅ Enable Day - Click to Disable';
+            dayToggleBtn.onclick = () => toggleDay(date, dayDisabled);
+            dayToggleDiv.appendChild(dayToggleBtn);
+            grid.appendChild(dayToggleDiv);
+            
+            if (dayDisabled) {
+                const disabledMsg = document.createElement('div');
+                disabledMsg.className = 'no-slots-message';
+                disabledMsg.textContent = 'This entire day is disabled. Click the button above to enable it.';
+                grid.appendChild(disabledMsg);
+                return;
+            }
+            
             // First shift
             const firstShiftDiv = document.createElement('div');
             firstShiftDiv.className = 'shift-container';
-            firstShiftDiv.innerHTML = `<div class="shift-title">First Shift ${isSummerTime ? '(Summer: 8:00 AM - 10:00 AM)' : '(Winter: 9:00 AM - 10:00 AM)'}</div>`;
+            firstShiftDiv.innerHTML = `<div class="shift-title">First Shift ${isSummerTime ? '(Summer: 8:00 AM - 10:00 AM)' : '(Winter: 9:00 AM - 10:00 AM)'} - Click to toggle disable</div>`;
             
             timeSlots.first.forEach(slot => {
                 const slotDiv = document.createElement('div');
-                slotDiv.className = 'time-slot';
+                slotDiv.className = 'time-slot clickable';
+                const normalizedSlot = normalizeTimeSlot(slot);
+                const isTaken = takenSlots.has(normalizedSlot);
+                const isDisabled = disabledSlotsSet.has(normalizedSlot);
                 
-                if (takenSlots.has(normalizeTimeSlot(slot))) {
+                if (isTaken) {
                     slotDiv.classList.add('confirmed');
+                } else if (isDisabled) {
+                    slotDiv.classList.add('disabled');
                 } else {
                     slotDiv.classList.add('available');
                 }
                 
                 slotDiv.textContent = slot;
+                slotDiv.onclick = () => toggleSlot(date, slot, isDisabled);
                 firstShiftDiv.appendChild(slotDiv);
             });
             
@@ -1994,19 +2105,25 @@
             // Second shift
             const secondShiftDiv = document.createElement('div');
             secondShiftDiv.className = 'shift-container';
-            secondShiftDiv.innerHTML = `<div class="shift-title">Second Shift ${isSummerTime ? '(Summer: 4:00 PM - 7:00 PM)' : '(Winter: 2:00 PM - 5:00 PM)'}</div>`;
+            secondShiftDiv.innerHTML = `<div class="shift-title">Second Shift ${isSummerTime ? '(Summer: 4:00 PM - 7:00 PM)' : '(Winter: 2:00 PM - 5:00 PM)'} - Click to toggle disable</div>`;
             
             timeSlots.second.forEach(slot => {
                 const slotDiv = document.createElement('div');
-                slotDiv.className = 'time-slot';
+                slotDiv.className = 'time-slot clickable';
+                const normalizedSlot = normalizeTimeSlot(slot);
+                const isTaken = takenSlots.has(normalizedSlot);
+                const isDisabled = disabledSlotsSet.has(normalizedSlot);
                 
-                if (takenSlots.has(normalizeTimeSlot(slot))) {
+                if (isTaken) {
                     slotDiv.classList.add('confirmed');
+                } else if (isDisabled) {
+                    slotDiv.classList.add('disabled');
                 } else {
                     slotDiv.classList.add('available');
                 }
                 
                 slotDiv.textContent = slot;
+                slotDiv.onclick = () => toggleSlot(date, slot, isDisabled);
                 secondShiftDiv.appendChild(slotDiv);
             });
             
