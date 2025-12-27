@@ -398,6 +398,146 @@
             animation: slideDown 0.3s ease;
         }
 
+        .modal-content.large {
+            max-width: 900px;
+        }
+
+        /* Calendar Modal Styles */
+        .calendar-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .calendar-nav-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s ease;
+        }
+
+        .calendar-nav-btn:hover {
+            background: #5568d3;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .calendar-day {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .calendar-day:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .calendar-day.selected {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .calendar-day-header {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .calendar-day-date {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .time-slots-container {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .time-slots-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .time-slots-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .shift-container {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .shift-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .time-slot {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #333;
+            position: relative;
+        }
+
+        .time-slot.confirmed {
+            text-decoration: line-through;
+            color: #999;
+            background: #f8f8f8;
+        }
+
+        .time-slot.available {
+            color: #28a745;
+            border-color: #28a745;
+        }
+
+        .no-slots-message {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+            font-style: italic;
+        }
+
         @keyframes slideDown {
             from {
                 opacity: 0;
@@ -713,6 +853,9 @@
                         <div class="card-subtitle">Manage and track all cleaning reservations</div>
                     </div>
                     <div class="action-buttons">
+                        <button class="btn btn-primary" onclick="showCalendarView()">
+                            📅 Calendar View
+                        </button>
                         <button class="btn btn-danger" onclick="deleteSelectedReservations()">
                             🗑️ Delete Selected
                         </button>
@@ -978,6 +1121,32 @@
         </div>
     </div>
 
+    <!-- Calendar View Modal -->
+    <div id="calendarModal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <div class="modal-title">📅 Cleaning Schedule Calendar</div>
+            </div>
+            <div class="modal-body">
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <div class="calendar-nav">
+                            <button class="calendar-nav-btn" onclick="changeCalendarMonth(-1)">← Previous</button>
+                            <span id="calendarMonthYear" style="font-weight: 600; font-size: 16px; color: #333;"></span>
+                            <button class="calendar-nav-btn" onclick="changeCalendarMonth(1)">Next →</button>
+                        </div>
+                        <button class="btn btn-secondary" onclick="closeCalendarModal()">Close</button>
+                    </div>
+                    <div id="calendarGrid" class="calendar-grid"></div>
+                    <div id="timeSlotsContainer" class="time-slots-container" style="display: none;">
+                        <div class="time-slots-title" id="selectedDateTitle"></div>
+                        <div id="timeSlotsGrid" class="time-slots-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script>
         let currentPaymentData = null;
@@ -1115,9 +1284,14 @@
         }
 
         window.onclick = function(event) {
-            const modal = document.getElementById('paymentModal');
-            if (event.target == modal) {
+            const paymentModal = document.getElementById('paymentModal');
+            const calendarModal = document.getElementById('calendarModal');
+            
+            if (event.target == paymentModal) {
                 closeModal();
+            }
+            if (event.target == calendarModal) {
+                closeCalendarModal();
             }
         }
 
@@ -1637,6 +1811,227 @@
                 console.error('Error:', error);
                 alert('Error resetting password');
             });
+        }
+
+        // Calendar View Functions
+        let currentCalendarDate = new Date();
+        let selectedCalendarDate = null;
+
+        function isSummer(date) {
+            // Summer: April (4) through September (9)
+            // Winter: October (10) through March (3)
+            const month = date.getMonth() + 1; // getMonth() returns 0-11
+            return month >= 4 && month <= 9;
+        }
+
+        function getTimeSlots(date) {
+            const isSummerTime = isSummer(date);
+            
+            if (isSummerTime) {
+                // Summer: First shift 8:00 AM - 10:00 AM, Second shift 4:00 PM - 7:00 PM
+                return {
+                    first: ['8:00 AM', '9:00 AM', '10:00 AM'],
+                    second: ['4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM']
+                };
+            } else {
+                // Winter: First shift 9:00 AM - 10:00 AM, Second shift 2:00 PM - 5:00 PM
+                return {
+                    first: ['9:00 AM', '10:00 AM'],
+                    second: ['2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM']
+                };
+            }
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function formatDateDisplay(date) {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        }
+
+        function getFridaysAndSaturdays(year, month) {
+            const dates = [];
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            
+            // Find first Friday of the month
+            let currentDate = new Date(firstDay);
+            while (currentDate.getDay() !== 5) { // 5 is Friday
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // Add all Fridays and Saturdays in the month
+            while (currentDate <= lastDay) {
+                // Add Friday
+                dates.push(new Date(currentDate));
+                
+                // Add Saturday (next day)
+                const saturday = new Date(currentDate);
+                saturday.setDate(saturday.getDate() + 1);
+                if (saturday <= lastDay && saturday.getMonth() === month) {
+                    dates.push(saturday);
+                }
+                
+                // Move to next Friday
+                currentDate.setDate(currentDate.getDate() + 7);
+            }
+            
+            return dates;
+        }
+
+        function renderCalendar() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+            
+            // Update month/year display
+            const monthYear = currentCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+            document.getElementById('calendarMonthYear').textContent = monthYear;
+            
+            // Get Fridays and Saturdays
+            const dates = getFridaysAndSaturdays(year, month);
+            
+            // Render calendar grid
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            
+            dates.forEach(date => {
+                const dayElement = document.createElement('div');
+                dayElement.className = 'calendar-day';
+                dayElement.onclick = () => selectCalendarDate(date);
+                
+                if (selectedCalendarDate && formatDate(date) === formatDate(selectedCalendarDate)) {
+                    dayElement.classList.add('selected');
+                }
+                
+                const dayName = date.toLocaleString('default', { weekday: 'long' });
+                const dateStr = formatDateDisplay(date);
+                
+                dayElement.innerHTML = `
+                    <div class="calendar-day-header">${dayName}</div>
+                    <div class="calendar-day-date">${dateStr}</div>
+                `;
+                
+                grid.appendChild(dayElement);
+            });
+        }
+
+        function changeCalendarMonth(direction) {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
+            renderCalendar();
+        }
+
+        function selectCalendarDate(date) {
+            selectedCalendarDate = date;
+            renderCalendar();
+            loadDayReservations(date);
+        }
+
+        function loadDayReservations(date) {
+            const dateStr = formatDate(date);
+            const container = document.getElementById('timeSlotsContainer');
+            const title = document.getElementById('selectedDateTitle');
+            const grid = document.getElementById('timeSlotsGrid');
+            
+            title.textContent = `Time Slots for ${formatDateDisplay(date)}`;
+            container.style.display = 'block';
+            grid.innerHTML = '<div class="no-slots-message">Loading...</div>';
+            
+            // Scroll to time slots container
+            setTimeout(() => {
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+            
+            fetch(`/reservations/by_date/${dateStr}`)
+                .then(response => response.json())
+                .then(reservations => {
+                    displayTimeSlots(date, reservations);
+                })
+                .catch(error => {
+                    console.error('Error loading reservations:', error);
+                    grid.innerHTML = '<div class="no-slots-message">Error loading reservations</div>';
+                });
+        }
+
+        function normalizeTimeSlot(slot) {
+            // Normalize time slot format for comparison (remove spaces, standardize AM/PM)
+            return slot.toString().trim().toUpperCase().replace(/\s+/g, ' ');
+        }
+
+        function displayTimeSlots(date, reservations) {
+            const timeSlots = getTimeSlots(date);
+            const grid = document.getElementById('timeSlotsGrid');
+            const isSummerTime = isSummer(date);
+            
+            // Create a map of confirmed reservations by time slot (normalized)
+            const confirmedSlots = new Set();
+            reservations.forEach(res => {
+                if (res.status === 'Confirmed' && res.time_slot) {
+                    confirmedSlots.add(normalizeTimeSlot(res.time_slot));
+                }
+            });
+            
+            grid.innerHTML = '';
+            
+            // First shift
+            const firstShiftDiv = document.createElement('div');
+            firstShiftDiv.className = 'shift-container';
+            firstShiftDiv.innerHTML = `<div class="shift-title">First Shift ${isSummerTime ? '(Summer: 8:00 AM - 10:00 AM)' : '(Winter: 9:00 AM - 10:00 AM)'}</div>`;
+            
+            timeSlots.first.forEach(slot => {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'time-slot';
+                
+                if (confirmedSlots.has(normalizeTimeSlot(slot))) {
+                    slotDiv.classList.add('confirmed');
+                } else {
+                    slotDiv.classList.add('available');
+                }
+                
+                slotDiv.textContent = slot;
+                firstShiftDiv.appendChild(slotDiv);
+            });
+            
+            grid.appendChild(firstShiftDiv);
+            
+            // Second shift
+            const secondShiftDiv = document.createElement('div');
+            secondShiftDiv.className = 'shift-container';
+            secondShiftDiv.innerHTML = `<div class="shift-title">Second Shift ${isSummerTime ? '(Summer: 4:00 PM - 7:00 PM)' : '(Winter: 2:00 PM - 5:00 PM)'}</div>`;
+            
+            timeSlots.second.forEach(slot => {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'time-slot';
+                
+                if (confirmedSlots.has(normalizeTimeSlot(slot))) {
+                    slotDiv.classList.add('confirmed');
+                } else {
+                    slotDiv.classList.add('available');
+                }
+                
+                slotDiv.textContent = slot;
+                secondShiftDiv.appendChild(slotDiv);
+            });
+            
+            grid.appendChild(secondShiftDiv);
+        }
+
+        function showCalendarView() {
+            currentCalendarDate = new Date();
+            selectedCalendarDate = null;
+            document.getElementById('timeSlotsContainer').style.display = 'none';
+            renderCalendar();
+            document.getElementById('calendarModal').style.display = 'block';
+        }
+
+        function closeCalendarModal() {
+            document.getElementById('calendarModal').style.display = 'none';
+            selectedCalendarDate = null;
         }
     </script>
 </body>

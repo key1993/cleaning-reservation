@@ -95,6 +95,17 @@ def get_reservation(id):
     r["_id"] = str(r["_id"])
     return jsonify(r)
 
+@routes.route("/reservations/by_date/<date>", methods=["GET"])
+def get_reservations_by_date(date):
+    """Get all reservations for a specific date"""
+    try:
+        reservations = list(reservations_collection.find({"date": date}))
+        for r in reservations:
+            r["_id"] = str(r["_id"])
+        return jsonify(reservations), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @routes.route('/update_status', methods=['POST'])
 def update_status():
     reservation_id = request.form['reservation_id']
