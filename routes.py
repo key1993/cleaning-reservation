@@ -112,18 +112,37 @@ def get_reservations_with_details():
             client_name = "N/A"
             phone_number = "N/A"
             
-            # Try to find client information
-            if user_id:
-                # Try to match by ObjectId if user_id is a valid ObjectId string
+            # Try to find client information using multiple methods
+            if user_id and user_id != "Guest":
+                client = None
+                
+                # Method 1: Try to match by ObjectId if user_id is a valid ObjectId string
                 try:
                     client = clients_collection.find_one({"_id": ObjectId(user_id)})
-                    if client:
-                        client_name = client.get("full_name", "N/A")
-                        phone_number = client.get("phone", "N/A")
                 except:
-                    # If user_id is not a valid ObjectId, try other matching methods
-                    # Could also try matching by email if stored in reservation
                     pass
+                
+                # Method 2: If not found, try matching by email (if user_id is an email)
+                if not client:
+                    client = clients_collection.find_one({"email": user_id})
+                
+                # Method 3: If not found, try matching by phone
+                if not client:
+                    client = clients_collection.find_one({"phone": user_id})
+                
+                # Method 4: Check if reservation has email or phone that matches client
+                if not client:
+                    res_email = res.get("email")
+                    res_phone = res.get("phone")
+                    if res_email:
+                        client = clients_collection.find_one({"email": res_email})
+                    if not client and res_phone:
+                        client = clients_collection.find_one({"phone": res_phone})
+                
+                # If client found, extract name and phone
+                if client:
+                    client_name = client.get("full_name", "N/A")
+                    phone_number = client.get("phone", "N/A")
             
             # Build the response with requested fields
             reservation_detail = {
