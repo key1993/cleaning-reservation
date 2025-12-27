@@ -144,6 +144,12 @@ def get_reservations_with_details():
                     client_name = client.get("full_name", "N/A")
                     phone_number = client.get("phone", "N/A")
             
+            # Fallback: If client not found but reservation has phone/email, use them
+            if phone_number == "N/A":
+                phone_number = res.get("phone", "N/A")
+            if client_name == "N/A" and res.get("name"):
+                client_name = res.get("name", "N/A")
+            
             # Build the response with requested fields
             reservation_detail = {
                 "longitude": res.get("longitude", "N/A"),
