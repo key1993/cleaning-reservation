@@ -900,6 +900,7 @@
                                 <th>Panel Size</th>
                                 <th>Status</th>
                                 <th>Cost (JOD)</th>
+                                <th>Crew Price (JOD)</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -942,6 +943,7 @@
                                         <button type="submit" class="btn btn-sm btn-primary">💾</button>
                                     </form>
                                 </td>
+                                <td>{{ r.get('crew_price', 'N/A') }}</td>
                                 <td>
                                     <div class="action-buttons-cell">
                                         {% if r.status == 'Pending' %}

@@ -184,6 +184,98 @@ def get_reservation(id):
     r["_id"] = str(r["_id"])
     return jsonify(r)
 
+@routes.route("/api/crew_price", methods=["POST"])
+def update_crew_price():
+    """Update crew price for a reservation by matching client name, date, and time"""
+    try:
+        data = request.json
+        
+        # Validate required fields
+        required_fields = ["client_name", "date", "time", "crew_price"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+        
+        client_name = data.get("client_name")
+        date = data.get("date")
+        time = data.get("time")  # This is time_slot in reservations
+        crew_price = data.get("crew_price")
+        
+        # First, find the client by name
+        client = clients_collection.find_one({"full_name": client_name})
+        
+        if not client:
+            return jsonify({
+                "success": False,
+                "error": f"Client not found with name: {client_name}"
+            }), 404
+        
+        # Get all possible identifiers for this client
+        client_id = str(client["_id"])
+        client_email = client.get("email")
+        client_phone = client.get("phone")
+        client_firebase_uid = client.get("firebase_uid")
+        
+        # Find all reservations matching date and time
+        candidates = list(reservations_collection.find({
+            "date": date,
+            "time_slot": time
+        }))
+        
+        if not candidates:
+            return jsonify({
+                "success": False,
+                "error": f"No reservation found for date: {date}, time: {time}"
+            }), 404
+        
+        # Find the reservation that belongs to this client
+        reservation = None
+        for candidate in candidates:
+            user_id = candidate.get("user_id")
+            
+            # Try to match user_id with any of the client identifiers
+            if user_id == client_id:
+                reservation = candidate
+                break
+            elif client_email and user_id == client_email:
+                reservation = candidate
+                break
+            elif client_phone and user_id == client_phone:
+                reservation = candidate
+                break
+            elif client_firebase_uid and user_id == client_firebase_uid:
+                reservation = candidate
+                break
+            else:
+                # Try matching by ObjectId (in case user_id is stored differently)
+                try:
+                    if user_id and ObjectId(user_id) == client["_id"]:
+                        reservation = candidate
+                        break
+                except:
+                    pass
+        
+        if not reservation:
+            return jsonify({
+                "success": False,
+                "error": f"No reservation found matching client_name: {client_name}, date: {date}, time: {time}"
+            }), 404
+        
+        # Update the reservation with crew price
+        reservations_collection.update_one(
+            {"_id": reservation["_id"]},
+            {"$set": {"crew_price": crew_price, "crew_price_updated_at": datetime.utcnow()}}
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": "Crew price updated successfully",
+            "reservation_id": str(reservation["_id"])
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes.route("/reservations/by_date/<date>", methods=["GET"])
 def get_reservations_by_date(date):
     """Get all reservations for a specific date"""
