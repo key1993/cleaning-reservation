@@ -106,6 +106,107 @@ def get_reservations_by_date(date):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@routes.route("/api/available_slots", methods=["GET"])
+def get_available_slots():
+    """Get available time slots for the next 5 working days (Monday-Saturday, excluding Friday)"""
+    try:
+        def is_summer(date_obj):
+            """Check if date is in summer period (April-September)"""
+            month = date_obj.month
+            return month >= 4 and month <= 9
+        
+        def get_time_slots_for_date(date_obj):
+            """Get all time slots for a given date based on season"""
+            if is_summer(date_obj):
+                # Summer: First shift 8:00 AM - 10:00 AM, Second shift 4:00 PM - 7:00 PM
+                return {
+                    'first': ['8:00 AM', '9:00 AM', '10:00 AM'],
+                    'second': ['4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM']
+                }
+            else:
+                # Winter: First shift 9:00 AM - 10:00 AM, Second shift 2:00 PM - 5:00 PM
+                return {
+                    'first': ['9:00 AM', '10:00 AM'],
+                    'second': ['2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM']
+                }
+        
+        def get_next_5_working_days():
+            """Get next 5 working days (Monday-Saturday, excluding Friday)"""
+            dates = []
+            today = datetime.now().date()
+            current_date = today
+            
+            days_found = 0
+            while days_found < 5:
+                day_of_week = current_date.weekday()  # 0 = Monday, 1 = Tuesday, 2 = Wednesday, 3 = Thursday, 4 = Friday, 5 = Saturday, 6 = Sunday
+                # Skip Sunday (6) and Friday (4), include Monday-Thursday and Saturday
+                if day_of_week != 6 and day_of_week != 4:
+                    dates.append(current_date)
+                    days_found += 1
+                current_date = current_date + timedelta(days=1)
+            
+            return dates
+        
+        # Get next 5 working days
+        working_days = get_next_5_working_days()
+        
+        # Get all reservations for these dates
+        date_strings = [date.strftime("%Y-%m-%d") for date in working_days]
+        reservations = list(reservations_collection.find({"date": {"$in": date_strings}}))
+        
+        # Create a map of reserved slots by date
+        reserved_slots = {}
+        for res in reservations:
+            date_str = res.get("date")
+            time_slot = res.get("time_slot", "").strip()
+            if date_str and time_slot:
+                if date_str not in reserved_slots:
+                    reserved_slots[date_str] = set()
+                reserved_slots[date_str].add(time_slot)
+        
+        # Build response with available slots
+        available_slots = []
+        for date_obj in working_days:
+            date_str = date_obj.strftime("%Y-%m-%d")
+            time_slots = get_time_slots_for_date(date_obj)
+            
+            # Get reserved slots for this date (normalize for comparison)
+            reserved_for_date = reserved_slots.get(date_str, set())
+            
+            # Get all slots for this date
+            all_slots = time_slots['first'] + time_slots['second']
+            
+            # Find available slots (not in reserved list)
+            available = []
+            for slot in all_slots:
+                # Check if slot is reserved (try both original format and normalized)
+                is_reserved = False
+                for reserved in reserved_for_date:
+                    if reserved.strip().upper() == slot.upper() or reserved.strip() == slot:
+                        is_reserved = True
+                        break
+                
+                if not is_reserved:
+                    available.append(slot)
+            
+            available_slots.append({
+                "date": date_str,
+                "date_display": date_obj.strftime("%A, %B %d, %Y"),
+                "day_name": date_obj.strftime("%A"),
+                "season": "summer" if is_summer(date_obj) else "winter",
+                "available_slots": available,
+                "all_slots": all_slots,
+                "reserved_slots": list(reserved_for_date) if date_str in reserved_slots else []
+            })
+        
+        return jsonify({
+            "success": True,
+            "available_slots": available_slots
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes.route('/update_status', methods=['POST'])
 def update_status():
     reservation_id = request.form['reservation_id']

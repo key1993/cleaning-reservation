@@ -439,7 +439,7 @@
 
         .calendar-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
         }
@@ -1131,9 +1131,7 @@
                 <div class="calendar-container">
                     <div class="calendar-header">
                         <div class="calendar-nav">
-                            <button class="calendar-nav-btn" onclick="changeCalendarMonth(-1)">← Previous</button>
                             <span id="calendarMonthYear" style="font-weight: 600; font-size: 16px; color: #333;"></span>
-                            <button class="calendar-nav-btn" onclick="changeCalendarMonth(1)">Next →</button>
                         </div>
                         <button class="btn btn-secondary" onclick="closeCalendarModal()">Close</button>
                     </div>
@@ -1818,8 +1816,8 @@
         let selectedCalendarDate = null;
 
         function isSummer(date) {
-            // Summer: April (4) through September (9)
-            // Winter: October (10) through March (3)
+            // Summer: April (4) through September (9) - 6 months
+            // Winter: October (10) through March (3) - 6 months
             const month = date.getMonth() + 1; // getMonth() returns 0-11
             return month >= 4 && month <= 9;
         }
@@ -1855,46 +1853,37 @@
             return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
         }
 
-        function getFridaysAndSaturdays(year, month) {
+        function getNext5WorkingDays() {
+            // Get next 5 working days (Monday-Saturday, excluding Friday)
             const dates = [];
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Reset time to start of day
             
-            // Find first Friday of the month
-            let currentDate = new Date(firstDay);
-            while (currentDate.getDay() !== 5) { // 5 is Friday
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
+            let currentDate = new Date(today);
+            let daysFound = 0;
             
-            // Add all Fridays and Saturdays in the month
-            while (currentDate <= lastDay) {
-                // Add Friday
-                dates.push(new Date(currentDate));
+            while (daysFound < 5) {
+                const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
                 
-                // Add Saturday (next day)
-                const saturday = new Date(currentDate);
-                saturday.setDate(saturday.getDate() + 1);
-                if (saturday <= lastDay && saturday.getMonth() === month) {
-                    dates.push(saturday);
+                // Skip Sunday (0) and Friday (5), include Monday-Saturday
+                if (dayOfWeek !== 0 && dayOfWeek !== 5) {
+                    dates.push(new Date(currentDate));
+                    daysFound++;
                 }
                 
-                // Move to next Friday
-                currentDate.setDate(currentDate.getDate() + 7);
+                // Move to next day
+                currentDate.setDate(currentDate.getDate() + 1);
             }
             
             return dates;
         }
 
         function renderCalendar() {
-            const year = currentCalendarDate.getFullYear();
-            const month = currentCalendarDate.getMonth();
+            // Update header to show "Next 5 Days" instead of month
+            document.getElementById('calendarMonthYear').textContent = 'Next 5 Working Days (Monday-Saturday, Friday Off)';
             
-            // Update month/year display
-            const monthYear = currentCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-            document.getElementById('calendarMonthYear').textContent = monthYear;
-            
-            // Get Fridays and Saturdays
-            const dates = getFridaysAndSaturdays(year, month);
+            // Get next 5 working days (Monday-Saturday, excluding Friday)
+            const dates = getNext5WorkingDays();
             
             // Render calendar grid
             const grid = document.getElementById('calendarGrid');
@@ -1922,8 +1911,8 @@
         }
 
         function changeCalendarMonth(direction) {
-            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
-            renderCalendar();
+            // Calendar now shows only next 5 days, so navigation is disabled
+            // This function is kept for compatibility but does nothing
         }
 
         function selectCalendarDate(date) {
