@@ -522,8 +522,9 @@
 
         .time-slot.confirmed {
             text-decoration: line-through;
-            color: #999;
-            background: #f8f8f8;
+            color: #dc3545;
+            background: #fff5f5;
+            border-color: #dc3545;
         }
 
         .time-slot.available {
@@ -1957,11 +1958,13 @@
             const grid = document.getElementById('timeSlotsGrid');
             const isSummerTime = isSummer(date);
             
-            // Create a map of confirmed reservations by time slot (normalized)
-            const confirmedSlots = new Set();
+            // Create a map of taken slots (pending or confirmed) by time slot (normalized)
+            const takenSlots = new Set();
             reservations.forEach(res => {
-                if (res.status === 'Confirmed' && res.time_slot) {
-                    confirmedSlots.add(normalizeTimeSlot(res.time_slot));
+                const status = (res.status || '').toLowerCase();
+                // Include both pending and confirmed reservations
+                if ((status === 'pending' || status === 'confirmed') && res.time_slot) {
+                    takenSlots.add(normalizeTimeSlot(res.time_slot));
                 }
             });
             
@@ -1976,7 +1979,7 @@
                 const slotDiv = document.createElement('div');
                 slotDiv.className = 'time-slot';
                 
-                if (confirmedSlots.has(normalizeTimeSlot(slot))) {
+                if (takenSlots.has(normalizeTimeSlot(slot))) {
                     slotDiv.classList.add('confirmed');
                 } else {
                     slotDiv.classList.add('available');
@@ -1997,7 +2000,7 @@
                 const slotDiv = document.createElement('div');
                 slotDiv.className = 'time-slot';
                 
-                if (confirmedSlots.has(normalizeTimeSlot(slot))) {
+                if (takenSlots.has(normalizeTimeSlot(slot))) {
                     slotDiv.classList.add('confirmed');
                 } else {
                     slotDiv.classList.add('available');
