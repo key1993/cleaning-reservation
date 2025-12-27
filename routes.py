@@ -100,6 +100,54 @@ def list_reservations():
         r["_id"] = str(r["_id"])
     return jsonify(reservations)
 
+@routes.route("/api/reservations/details", methods=["GET"])
+def get_reservations_with_details():
+    """Get all reservations with client details (longitude, latitude, panels, date, time, phone, panel_size, client_name)"""
+    try:
+        reservations = list(reservations_collection.find())
+        result = []
+        
+        for res in reservations:
+            user_id = res.get("user_id")
+            client_name = "N/A"
+            phone_number = "N/A"
+            
+            # Try to find client information
+            if user_id:
+                # Try to match by ObjectId if user_id is a valid ObjectId string
+                try:
+                    client = clients_collection.find_one({"_id": ObjectId(user_id)})
+                    if client:
+                        client_name = client.get("full_name", "N/A")
+                        phone_number = client.get("phone", "N/A")
+                except:
+                    # If user_id is not a valid ObjectId, try other matching methods
+                    # Could also try matching by email if stored in reservation
+                    pass
+            
+            # Build the response with requested fields
+            reservation_detail = {
+                "longitude": res.get("longitude", "N/A"),
+                "latitude": res.get("latitude", "N/A"),
+                "number_of_panels": res.get("number_of_panels", "N/A"),
+                "date": res.get("date", "N/A"),
+                "time_slot": res.get("time_slot", "N/A"),
+                "phone_number": phone_number,
+                "panel_size": res.get("panel_size", "N/A"),
+                "client_name": client_name
+            }
+            
+            result.append(reservation_detail)
+        
+        return jsonify({
+            "success": True,
+            "reservations": result,
+            "count": len(result)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes.route("/reservations/<id>", methods=["GET"])
 def get_reservation(id):
     try:
