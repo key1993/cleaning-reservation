@@ -897,6 +897,7 @@
                                 <th>Time Slot</th>
                                 <th>Location</th>
                                 <th>Panels</th>
+                                <th>Panel Size</th>
                                 <th>Status</th>
                                 <th>Cost (JOD)</th>
                                 <th>Actions</th>
@@ -922,6 +923,7 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ r.number_of_panels }}</td>
+                                <td>{{ r.get('panel_size', 'N/A') }}</td>
                                 <td>
                                     {% if r.status == 'Confirmed' %}
                                         <span class="badge badge-confirmed">Approved</span>
