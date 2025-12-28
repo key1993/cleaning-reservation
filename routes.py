@@ -677,6 +677,81 @@ def deny_reservation(id):
     except Exception as e:
         return jsonify({"error": "Invalid ID"}), 400
 
+@routes.route("/api/coming_over", methods=["POST"])
+def coming_over():
+    """Update reservation status to 'en_route' when cleaning crew starts coming to customer's location"""
+    try:
+        data = request.json
+        
+        # Validate reservation_id is provided
+        if not data or "reservation_id" not in data:
+            return jsonify({
+                "success": False,
+                "error": "reservation_id is required"
+            }), 400
+        
+        reservation_id = data.get("reservation_id")
+        
+        # Validate reservation_id is not empty
+        if not reservation_id:
+            return jsonify({
+                "success": False,
+                "error": "reservation_id is required"
+            }), 400
+        
+        # Convert string ID to ObjectId and find reservation
+        try:
+            reservation = reservations_collection.find_one({"_id": ObjectId(reservation_id)})
+        except:
+            return jsonify({
+                "success": False,
+                "error": "Invalid reservation_id format"
+            }), 400
+        
+        # Check if reservation exists
+        if not reservation:
+            return jsonify({
+                "success": False,
+                "error": "Reservation not found"
+            }), 404
+        
+        # Optional: Validate reservation is in a valid state (not already completed or cancelled)
+        current_status = reservation.get("status", "").lower()
+        if current_status in ["completed", "canceled", "cancelled"]:
+            return jsonify({
+                "success": False,
+                "error": f"Cannot update status: reservation is already {current_status}"
+            }), 400
+        
+        # Update reservation status to "en_route" and add timestamp
+        result = reservations_collection.update_one(
+            {"_id": ObjectId(reservation_id)},
+            {
+                "$set": {
+                    "status": "en_route",
+                    "en_route_at": datetime.utcnow().isoformat()
+                }
+            }
+        )
+        
+        # Check if update was successful
+        if result.matched_count == 0:
+            return jsonify({
+                "success": False,
+                "error": "Reservation not found"
+            }), 404
+        
+        return jsonify({
+            "success": True,
+            "message": "Status updated to en_route successfully"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
 @routes.route("/my_reservations")
 @login_required
 def my_reservations():
