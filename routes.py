@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, redirect, render_template, session
-from db import reservations_collection, clients_collection, disabled_slots_collection, db
+from db import reservations_collection, clients_collection, disabled_slots_collection, cleaning_crew_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
-from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password
+from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password, create_firebase_user
 
 import requests
 import urllib.parse
@@ -910,6 +910,116 @@ def finish_work():
             "success": True,
             "message": "Reservation cancelled successfully"
         }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+@routes.route("/api/register_crew", methods=["POST"])
+def register_crew():
+    """Register a new cleaning crew member"""
+    try:
+        data = request.json
+        
+        # Validate required fields
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Request body is required"
+            }), 400
+        
+        full_name = data.get("full_name", "").strip()
+        phone_number = data.get("phone_number", "").strip()
+        username = data.get("username", "").strip()
+        
+        # Validate required fields
+        if not full_name:
+            return jsonify({
+                "success": False,
+                "error": "full_name is required"
+            }), 400
+        
+        if not phone_number:
+            return jsonify({
+                "success": False,
+                "error": "phone_number is required"
+            }), 400
+        
+        if not username:
+            return jsonify({
+                "success": False,
+                "error": "username is required"
+            }), 400
+        
+        # Check if crew member already exists (by username or phone)
+        existing_crew = cleaning_crew_collection.find_one({
+            "$or": [
+                {"username": username},
+                {"phone_number": phone_number}
+            ]
+        })
+        
+        if existing_crew:
+            return jsonify({
+                "success": False,
+                "error": "Crew member with this username or phone number already exists"
+            }), 409
+        
+        # Create Firebase email identifier: username@crew.ebsher.local
+        firebase_email = f"{username}@crew.ebsher.local"
+        
+        # Try to find existing Firebase user with this email
+        firebase_user = get_firebase_user_by_email(firebase_email)
+        firebase_uid = None
+        
+        if firebase_user:
+            # Firebase user already exists, link it
+            firebase_uid = firebase_user.uid
+            print(f"✅ Linked existing Firebase account for crew: {username} ({firebase_email})")
+        else:
+            # Create new Firebase user
+            # Generate a random password (crew will need to reset it)
+            import secrets
+            import string
+            temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+            
+            firebase_user = create_firebase_user(
+                email=firebase_email,
+                password=temp_password,
+                display_name=full_name,
+                phone_number=phone_number
+            )
+            
+            if firebase_user:
+                firebase_uid = firebase_user.uid
+                print(f"✅ Created new Firebase account for crew: {username} ({firebase_email})")
+            else:
+                print(f"⚠️ Could not create Firebase account for crew: {username}")
+                # Continue without Firebase UID - can be linked later
+        
+        # Create crew member document
+        crew_data = {
+            "full_name": full_name,
+            "phone_number": phone_number,
+            "username": username,
+            "firebase_email": firebase_email,
+            "firebase_uid": firebase_uid,
+            "account_disabled": False,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = cleaning_crew_collection.insert_one(crew_data)
+        
+        return jsonify({
+            "success": True,
+            "message": "Cleaning crew member registered successfully",
+            "crew_id": str(result.inserted_id),
+            "firebase_uid": firebase_uid,
+            "firebase_email": firebase_email
+        }), 201
         
     except Exception as e:
         return jsonify({

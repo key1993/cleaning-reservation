@@ -865,6 +865,7 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="showTab('reservations')">📋 Reservations</button>
             <button class="tab-btn" onclick="showTab('clients')">👥 Clients</button>
+            <button class="tab-btn" onclick="showTab('cleaning_crew')">🧹 Cleaning Crew</button>
         </div>
 
         <!-- Reservations Tab -->
@@ -1119,6 +1120,104 @@
                                         <form method="POST" action="/delete_client/{{ c._id }}" class="form-inline" onsubmit="return confirm('Delete this client?');">
                                             <button type="submit" class="btn btn-sm btn-secondary">
                                                 🗑️ Delete Client
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cleaning Crew Tab -->
+        <div id="cleaning_crew" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Cleaning Crew Members</div>
+                        <div class="card-subtitle">Total: {{ cleaning_crew|length }} crew members</div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-danger" onclick="deleteSelectedCrew()">
+                            🗑️ Delete Selected
+                        </button>
+                        <span id="selectedCrewCount" class="selected-count"></span>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllCrew" onchange="toggleSelectAllCrew(this)"></th>
+                                <th>#</th>
+                                <th>Full Name</th>
+                                <th>Username</th>
+                                <th>Phone Number</th>
+                                <th>Firebase Email</th>
+                                <th>Account Status</th>
+                                <th>Created At</th>
+                                <th>Firebase Actions</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for crew in cleaning_crew %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="crew-checkbox" value="{{ crew._id }}" onchange="updateSelectedCrewCount()">
+                                </td>
+                                <td>{{ loop.index }}</td>
+                                <td><strong>{{ crew.full_name }}</strong></td>
+                                <td>{{ crew.username }}</td>
+                                <td>{{ crew.phone_number }}</td>
+                                <td>{{ crew.firebase_email or 'N/A' }}</td>
+                                <td>
+                                    {% if crew.firebase_uid %}
+                                        <div style="margin-bottom: 5px;">
+                                            {% if crew.account_disabled %}
+                                                <span class="badge badge-disabled firebase-status-badge">🔒 Disabled</span>
+                                            {% else %}
+                                                <span class="badge badge-active firebase-status-badge">✅ Active</span>
+                                            {% endif %}
+                                        </div>
+                                        <small style="font-size: 10px; color: #666; display: block; margin-bottom: 5px;">UID: {{ crew.firebase_uid[:8] }}...</small>
+                                        {% if crew.account_disabled_date %}
+                                        <small style="font-size: 10px; color: #999; display: block; margin-bottom: 5px;">Since: {{ crew.account_disabled_date }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="color: #666; font-size: 12px;">⚠️ Not Linked</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ crew.created_at.strftime('%Y-%m-%d %H:%M') if crew.created_at else 'N/A' }}</td>
+                                <td>
+                                    {% if crew.firebase_uid %}
+                                    <div class="firebase-actions-dropdown">
+                                        <button class="firebase-dropdown-btn" onclick="toggleFirebaseDropdown(event, 'crew-{{ crew._id }}')">
+                                            Firebase Actions ▼
+                                        </button>
+                                        <div id="firebase-dropdown-crew-{{ crew._id }}" class="firebase-dropdown-content">
+                                            {% if crew.account_disabled %}
+                                                <a href="#" onclick="event.preventDefault(); handleCrewFirebaseAction('enable', '{{ crew._id }}', '{{ crew.full_name }}', '{{ crew.firebase_uid }}', 'firebase-dropdown-crew-{{ crew._id }}')" class="firebase-dropdown-item success">✅ Enable Account</a>
+                                            {% else %}
+                                                <a href="#" onclick="event.preventDefault(); handleCrewFirebaseAction('disable', '{{ crew._id }}', '{{ crew.full_name }}', '{{ crew.firebase_uid }}', 'firebase-dropdown-crew-{{ crew._id }}')" class="firebase-dropdown-item warning">🔒 Disable Account</a>
+                                            {% endif %}
+                                            <a href="#" onclick="event.preventDefault(); handleCrewFirebaseAction('reset_password', '{{ crew._id }}', '{{ crew.full_name }}', '{{ crew.firebase_uid }}', 'firebase-dropdown-crew-{{ crew._id }}')" class="firebase-dropdown-item">🔑 Reset Password</a>
+                                            <a href="#" onclick="event.preventDefault(); handleCrewFirebaseAction('delete', '{{ crew._id }}', '{{ crew.full_name }}', '{{ crew.firebase_uid }}', 'firebase-dropdown-crew-{{ crew._id }}')" class="firebase-dropdown-item danger">🗑️ Delete Firebase Account</a>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                        <span style="color: #999; font-size: 11px;">No Firebase account</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="action-buttons-cell">
+                                        <form method="POST" action="/admin/delete_crew/{{ crew._id }}" class="form-inline" onsubmit="return confirm('Delete this crew member?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                🗑️ Delete
                                             </button>
                                         </form>
                                     </div>
@@ -1807,6 +1906,188 @@
                 });
             }
         });
+
+        // Cleaning Crew Management Functions
+        function toggleSelectAllCrew(selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll('.crew-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateSelectedCrewCount();
+        }
+
+        function updateSelectedCrewCount() {
+            const checkedBoxes = document.querySelectorAll('.crew-checkbox:checked');
+            const count = checkedBoxes.length;
+            const countSpan = document.getElementById('selectedCrewCount');
+            
+            if (count > 0) {
+                countSpan.textContent = `${count} selected`;
+            } else {
+                countSpan.textContent = '';
+            }
+            
+            const allCheckboxes = document.querySelectorAll('.crew-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAllCrew');
+            if (allCheckboxes.length > 0) {
+                selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+            }
+        }
+
+        function deleteSelectedCrew() {
+            const checkedBoxes = document.querySelectorAll('.crew-checkbox:checked');
+            
+            if (checkedBoxes.length === 0) {
+                alert('Please select at least one crew member to delete.');
+                return;
+            }
+            
+            const crewIds = Array.from(checkedBoxes).map(cb => cb.value);
+            const count = crewIds.length;
+            
+            if (!confirm(`Are you sure you want to delete ${count} selected crew member(s)? This action cannot be undone.`)) {
+                return;
+            }
+            
+            // Delete each crew member individually
+            Promise.all(crewIds.map(crewId => 
+                fetch(`/admin/delete_crew/${crewId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+            ))
+            .then(results => {
+                const successCount = results.filter(r => r.success).length;
+                if (successCount === count) {
+                    alert(`Successfully deleted ${successCount} crew member(s).`);
+                    location.reload();
+                } else {
+                    alert(`Deleted ${successCount} out of ${count} crew member(s). Some deletions may have failed.`);
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting crew members');
+            });
+        }
+
+        function handleCrewFirebaseAction(action, crewId, crewName, firebaseUid, dropdownId) {
+            // Close dropdown
+            document.getElementById(dropdownId).classList.remove('show');
+
+            if (action === 'enable') {
+                if (!confirm(`Are you sure you want to enable the Firebase account for ${crewName}?`)) {
+                    return;
+                }
+                
+                fetch(`/admin/enable_crew_account/${crewId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Account enabled successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error enabling account');
+                });
+            } else if (action === 'disable') {
+                if (!confirm(`Are you sure you want to disable the Firebase account for ${crewName}?`)) {
+                    return;
+                }
+                
+                fetch(`/admin/disable_crew_account/${crewId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Account disabled successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error disabling account');
+                });
+            } else if (action === 'reset_password') {
+                resetCrewPassword(crewId, crewName);
+            } else if (action === 'delete') {
+                if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${crewName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+                    return;
+                }
+                
+                fetch(`/admin/delete_crew_firebase_account/${crewId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Firebase account deleted successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting Firebase account');
+                });
+            }
+        }
+
+        function resetCrewPassword(crewId, crewName) {
+            // Close dropdown
+            const dropdown = document.getElementById(`firebase-dropdown-crew-${crewId}`);
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+
+            if (!confirm(`Are you sure you want to reset the password for ${crewName}?\n\nA temporary password will be generated and displayed.`)) {
+                return;
+            }
+
+            fetch(`/admin/reset_crew_password/${crewId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const message = `Password reset successful!\n\nTemporary Password: ${data.temp_password}\n\n${data.note || ''}`;
+                    alert(message);
+                    showToast('Password reset successfully!');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error resetting password');
+            });
+        }
 
         function resetPassword(clientId, clientName) {
             // Close dropdown

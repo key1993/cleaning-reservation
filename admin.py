@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, session, redirect, request, url_for, jsonify
-from db import reservations_collection, clients_collection
+from db import reservations_collection, clients_collection, cleaning_crew_collection
 from bson import ObjectId
 from functools import wraps
 from datetime import datetime, timedelta
@@ -61,6 +61,7 @@ def admin_dashboard():
     try:
         reservations = list(reservations_collection.find().sort("date", 1))
         clients = list(clients_collection.find())
+        cleaning_crew = list(cleaning_crew_collection.find().sort("created_at", -1))
         
         # Auto-link Firebase accounts for clients with email but no firebase_uid
         from firebase_service import get_firebase_user_by_email
@@ -144,7 +145,9 @@ def admin_dashboard():
         
         for r in reservations:
             r["_id"] = str(r["_id"])
-        return render_template("admin.html", reservations=reservations, clients=clients)
+        for crew in cleaning_crew:
+            crew["_id"] = str(crew["_id"])
+        return render_template("admin.html", reservations=reservations, clients=clients, cleaning_crew=cleaning_crew)
     except Exception as e:
         print(f"Error in admin dashboard: {e}")
         return render_template("error.html", error_message=f"Error loading admin dashboard: {str(e)}"), 500
@@ -214,3 +217,136 @@ def test_firebase_connection():
             "success": False,
             "error": f"Error testing Firebase: {str(e)}"
         }), 500
+
+@admin.route("/admin/disable_crew_account/<crew_id>", methods=["POST"])
+@admin_login_required
+def disable_crew_account(crew_id):
+    """Disable a cleaning crew member's Firebase account"""
+    try:
+        from firebase_service import disable_firebase_user
+        
+        crew = cleaning_crew_collection.find_one({"_id": ObjectId(crew_id)})
+        if not crew:
+            return jsonify({"success": False, "error": "Crew member not found"}), 404
+        
+        firebase_uid = crew.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Crew member does not have a Firebase account linked"}), 400
+        
+        if disable_firebase_user(firebase_uid):
+            cleaning_crew_collection.update_one(
+                {"_id": ObjectId(crew_id)},
+                {"$set": {"account_disabled": True, "account_disabled_date": datetime.now().strftime("%Y-%m-%d")}}
+            )
+            return jsonify({"success": True, "message": "Crew account disabled successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to disable Firebase account"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@admin.route("/admin/enable_crew_account/<crew_id>", methods=["POST"])
+@admin_login_required
+def enable_crew_account(crew_id):
+    """Enable a cleaning crew member's Firebase account"""
+    try:
+        from firebase_service import enable_firebase_user
+        
+        crew = cleaning_crew_collection.find_one({"_id": ObjectId(crew_id)})
+        if not crew:
+            return jsonify({"success": False, "error": "Crew member not found"}), 404
+        
+        firebase_uid = crew.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Crew member does not have a Firebase account linked"}), 400
+        
+        if enable_firebase_user(firebase_uid):
+            cleaning_crew_collection.update_one(
+                {"_id": ObjectId(crew_id)},
+                {"$set": {"account_disabled": False}, "$unset": {"account_disabled_date": ""}}
+            )
+            return jsonify({"success": True, "message": "Crew account enabled successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to enable Firebase account"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@admin.route("/admin/delete_crew_firebase_account/<crew_id>", methods=["POST"])
+@admin_login_required
+def delete_crew_firebase_account(crew_id):
+    """Delete a cleaning crew member's Firebase account"""
+    try:
+        from firebase_service import delete_firebase_user
+        
+        crew = cleaning_crew_collection.find_one({"_id": ObjectId(crew_id)})
+        if not crew:
+            return jsonify({"success": False, "error": "Crew member not found"}), 404
+        
+        firebase_uid = crew.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Crew member does not have a Firebase account linked"}), 400
+        
+        if delete_firebase_user(firebase_uid):
+            cleaning_crew_collection.update_one(
+                {"_id": ObjectId(crew_id)},
+                {"$unset": {"firebase_uid": "", "account_disabled": "", "account_disabled_date": ""}}
+            )
+            return jsonify({"success": True, "message": "Firebase account deleted successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to delete Firebase account"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@admin.route("/admin/reset_crew_password/<crew_id>", methods=["POST"])
+@admin_login_required
+def reset_crew_password(crew_id):
+    """Reset password for a cleaning crew member's Firebase account"""
+    try:
+        from firebase_service import reset_firebase_user_password
+        
+        crew = cleaning_crew_collection.find_one({"_id": ObjectId(crew_id)})
+        if not crew:
+            return jsonify({"success": False, "error": "Crew member not found"}), 404
+        
+        firebase_uid = crew.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Crew member does not have a Firebase account linked"}), 400
+        
+        temp_password = reset_firebase_user_password(firebase_uid)
+        
+        if temp_password:
+            crew_name = crew.get("full_name", "Unknown")
+            return jsonify({
+                "success": True,
+                "message": f"Password reset successfully for {crew_name}",
+                "temp_password": temp_password,
+                "note": "Please share this temporary password with the crew member. They should change it after logging in."
+            }), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to reset password"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@admin.route("/admin/delete_crew/<crew_id>", methods=["POST"])
+@admin_login_required
+def delete_crew(crew_id):
+    """Delete a cleaning crew member"""
+    try:
+        crew = cleaning_crew_collection.find_one({"_id": ObjectId(crew_id)})
+        if not crew:
+            return jsonify({"success": False, "error": "Crew member not found"}), 404
+        
+        # Optionally delete Firebase account first
+        firebase_uid = crew.get("firebase_uid")
+        if firebase_uid:
+            from firebase_service import delete_firebase_user
+            delete_firebase_user(firebase_uid)
+        
+        cleaning_crew_collection.delete_one({"_id": ObjectId(crew_id)})
+        return jsonify({"success": True, "message": "Crew member deleted successfully"}), 200
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
