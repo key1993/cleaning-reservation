@@ -1141,6 +1141,9 @@
                         <div class="card-subtitle">Total: {{ cleaning_crew|length }} crew members</div>
                     </div>
                     <div class="action-buttons">
+                        <button class="btn btn-primary" onclick="generateEbsherCode()">
+                            🔑 Generate a Code
+                        </button>
                         <button class="btn btn-danger" onclick="deleteSelectedCrew()">
                             🗑️ Delete Selected
                         </button>
@@ -1226,6 +1229,36 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code Generation Modal -->
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">🔑 Registration Code Generated</div>
+                <button class="modal-close" onclick="closeCodeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 48px; font-weight: bold; color: #667eea; letter-spacing: 8px; margin: 20px 0; font-family: 'Courier New', monospace;" id="generatedCode">
+                        ---
+                    </div>
+                    <div style="margin: 20px 0; color: #666;">
+                        <p style="font-size: 16px; margin: 10px 0;">⏰ Valid for: <strong id="codeExpiresIn">5 minutes</strong></p>
+                        <p style="font-size: 14px; margin: 10px 0; color: #999;">Expires at: <span id="codeExpiresAt">--</span></p>
+                    </div>
+                    <div style="margin: 20px 0;">
+                        <button class="btn btn-primary" onclick="copyGeneratedCode()" style="margin: 5px;">
+                            📋 Copy Code
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeCodeModal()" style="margin: 5px;">
+                            Close
+                        </button>
+                    </div>
+                    <div id="codeError" style="color: #ff6b6b; margin-top: 15px; display: none;"></div>
                 </div>
             </div>
         </div>
@@ -2088,6 +2121,128 @@
                 alert('Error resetting password');
             });
         }
+
+        // Code Generation Functions
+        let currentGeneratedCode = null;
+
+        function generateEbsherCode() {
+            // Show loading state
+            const modal = document.getElementById('codeModal');
+            const codeDisplay = document.getElementById('generatedCode');
+            const expiresIn = document.getElementById('codeExpiresIn');
+            const expiresAt = document.getElementById('codeExpiresAt');
+            const errorDiv = document.getElementById('codeError');
+            
+            codeDisplay.textContent = 'Generating...';
+            expiresIn.textContent = '--';
+            expiresAt.textContent = '--';
+            errorDiv.style.display = 'none';
+            modal.style.display = 'block';
+            
+            fetch('/admin/generate_ebsher_code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentGeneratedCode = data.code;
+                    codeDisplay.textContent = data.code;
+                    
+                    // Format expiration time
+                    const expiresDate = new Date(data.expires_at);
+                    const now = new Date();
+                    const minutesLeft = Math.ceil((expiresDate - now) / (1000 * 60));
+                    
+                    expiresIn.textContent = `${minutesLeft} minutes`;
+                    expiresAt.textContent = expiresDate.toLocaleString();
+                    
+                    // Start countdown
+                    startCodeCountdown(expiresDate);
+                    
+                    showToast('Code generated successfully!');
+                } else {
+                    codeDisplay.textContent = 'ERROR';
+                    errorDiv.textContent = 'Error: ' + (data.error || 'Failed to generate code');
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                codeDisplay.textContent = 'ERROR';
+                errorDiv.textContent = 'Error: Failed to generate code. Please try again.';
+                errorDiv.style.display = 'block';
+            });
+        }
+
+        function startCodeCountdown(expiresDate) {
+            const expiresIn = document.getElementById('codeExpiresIn');
+            
+            const updateCountdown = () => {
+                const now = new Date();
+                const diff = expiresDate - now;
+                
+                if (diff <= 0) {
+                    expiresIn.textContent = 'EXPIRED';
+                    expiresIn.style.color = '#ff6b6b';
+                    return;
+                }
+                
+                const minutes = Math.ceil(diff / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                if (minutes > 0) {
+                    expiresIn.textContent = `${minutes} minute${minutes !== 1 ? 's' : ''} ${seconds} second${seconds !== 1 ? 's' : ''}`;
+                } else {
+                    expiresIn.textContent = `${seconds} second${seconds !== 1 ? 's' : ''}`;
+                    if (seconds <= 30) {
+                        expiresIn.style.color = '#ff6b6b';
+                    }
+                }
+            };
+            
+            updateCountdown();
+            const interval = setInterval(updateCountdown, 1000);
+            
+            // Clear interval when modal is closed
+            const modal = document.getElementById('codeModal');
+            const observer = new MutationObserver(() => {
+                if (modal.style.display === 'none') {
+                    clearInterval(interval);
+                    observer.disconnect();
+                }
+            });
+            observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+        }
+
+        function copyGeneratedCode() {
+            if (!currentGeneratedCode) {
+                alert('No code to copy');
+                return;
+            }
+            
+            navigator.clipboard.writeText(currentGeneratedCode).then(() => {
+                showToast('Code copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy code. Please copy manually: ' + currentGeneratedCode);
+            });
+        }
+
+        function closeCodeModal() {
+            document.getElementById('codeModal').style.display = 'none';
+            currentGeneratedCode = null;
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('codeModal');
+            if (event.target === modal) {
+                closeCodeModal();
+            }
+        });
 
         function resetPassword(clientId, clientName) {
             // Close dropdown

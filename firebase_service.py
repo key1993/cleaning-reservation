@@ -3,7 +3,7 @@ Firebase Admin SDK service for managing user accounts
 """
 import os
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, firestore
 from datetime import datetime, timedelta
 
 # Initialize Firebase Admin SDK
@@ -329,4 +329,134 @@ def reset_firebase_user_password(firebase_uid):
     except Exception as e:
         print(f"❌ Error resetting password for Firebase user {firebase_uid}: {e}")
         return None
+
+def get_firestore_db():
+    """
+    Get Firestore database instance
+    
+    Returns:
+        firestore.Client or None
+    """
+    try:
+        if firebase_app is None:
+            initialize_firebase()
+        
+        if firebase_app is None:
+            print("Firebase not initialized. Cannot access Firestore.")
+            return None
+        
+        return firestore.client()
+        
+    except Exception as e:
+        print(f"❌ Error getting Firestore client: {e}")
+        return None
+
+def generate_ebsher_code():
+    """
+    Generate a one-time registration code and store it in Firestore
+    
+    Returns:
+        dict with 'success', 'code', 'expires_at' or error message
+    """
+    try:
+        db = get_firestore_db()
+        if db is None:
+            return {
+                "success": False,
+                "error": "Firestore not initialized"
+            }
+        
+        # Generate a unique code (format: ABC123CC - 3 letters, 3 digits, 2 letters)
+        import secrets
+        import string
+        
+        def generate_code():
+            letters1 = ''.join(secrets.choice(string.ascii_uppercase) for _ in range(3))
+            digits = ''.join(secrets.choice(string.digits) for _ in range(3))
+            letters2 = ''.join(secrets.choice(string.ascii_uppercase) for _ in range(2))
+            return f"{letters1}{digits}{letters2}"
+        
+        # Generate unique code (check for duplicates)
+        code = generate_code()
+        max_attempts = 10
+        attempts = 0
+        
+        while attempts < max_attempts:
+            # Check if code already exists and is not used
+            codes_ref = db.collection('ebsher_codes')
+            existing = codes_ref.where('code', '==', code).where('used', '==', False).limit(1).stream()
+            existing_list = list(existing)
+            
+            if len(existing_list) == 0:
+                break  # Code is unique or all existing codes are used/expired
+            
+            # Check if existing unused code is still valid (not expired)
+            is_valid = False
+            for doc in existing_list:
+                doc_data = doc.to_dict()
+                expires_at = doc_data.get('expiresAt')
+                if expires_at:
+                    # Convert Firestore timestamp to datetime if needed
+                    if hasattr(expires_at, 'timestamp'):
+                        expires_at = datetime.fromtimestamp(expires_at.timestamp())
+                    elif not isinstance(expires_at, datetime):
+                        # Try to parse if it's a string
+                        try:
+                            expires_at = datetime.fromisoformat(str(expires_at))
+                        except:
+                            expires_at = datetime.utcnow() - timedelta(minutes=1)  # Treat as expired
+                    
+                    if expires_at > datetime.utcnow():
+                        # Code exists and is still valid
+                        is_valid = True
+                        break
+            
+            if not is_valid:
+                # All existing codes are expired, we can use this code
+                break
+            
+            # Code exists and is valid, generate new one
+            code = generate_code()
+            attempts += 1
+        
+        if attempts >= max_attempts:
+            return {
+                "success": False,
+                "error": "Failed to generate unique code after multiple attempts"
+            }
+        
+        # Calculate expiration time (5 minutes from now)
+        expires_at = datetime.utcnow() + timedelta(minutes=5)
+        
+        # Store code in Firestore
+        code_data = {
+            'code': code,
+            'used': False,
+            'createdAt': datetime.utcnow(),
+            'expiresAt': expires_at,
+            'usedAt': None
+        }
+        
+        # Add document to Firestore collection
+        doc_ref = db.collection('ebsher_codes').document()
+        doc_ref.set(code_data)
+        
+        print(f"✅ Generated Ebsher code: {code} (expires at {expires_at})")
+        
+        return {
+            "success": True,
+            "code": code,
+            "expires_at": expires_at.isoformat(),
+            "expires_in_minutes": 5,
+            "document_id": doc_ref.id
+        }
+        
+    except Exception as e:
+        print(f"❌ Error generating Ebsher code: {e}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "error": f"Error generating code: {str(e)}"
+        }
 

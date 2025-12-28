@@ -350,3 +350,32 @@ def delete_crew(crew_id):
             
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@admin.route("/admin/generate_ebsher_code", methods=["POST"])
+@admin_login_required
+def generate_ebsher_code():
+    """Generate a one-time registration code for crew members"""
+    try:
+        from firebase_service import generate_ebsher_code as generate_code
+        
+        result = generate_code()
+        
+        if result.get("success"):
+            return jsonify({
+                "success": True,
+                "code": result.get("code"),
+                "expires_at": result.get("expires_at"),
+                "expires_in_minutes": result.get("expires_in_minutes", 5),
+                "message": f"Code generated successfully. Valid for 5 minutes."
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": result.get("error", "Failed to generate code")
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
