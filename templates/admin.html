@@ -24,6 +24,7 @@
             line-height: 1.6;
             display: flex;
             flex-direction: column;
+            font-size: 16px;
         }
 
         /* Header */
@@ -60,7 +61,7 @@
         }
 
         .user-info {
-            font-size: 14px;
+            font-size: 16px;
             opacity: 0.9;
         }
 
@@ -71,7 +72,7 @@
             padding: 8px 20px;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 500;
             transition: all 0.3s ease;
             text-decoration: none;
@@ -112,7 +113,7 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 500;
             color: #666;
             transition: all 0.3s ease;
@@ -174,7 +175,7 @@
 
         .card-subtitle {
             color: #666;
-            font-size: 14px;
+            font-size: 16px;
             margin-top: 5px;
         }
 
@@ -190,7 +191,7 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 500;
             transition: all 0.3s ease;
             display: inline-flex;
@@ -247,7 +248,7 @@
 
         .btn-sm {
             padding: 4px 8px;
-            font-size: 11px;
+            font-size: 14px;
         }
 
         /* Table */
@@ -276,14 +277,14 @@
             padding: 10px 8px;
             text-align: left;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 15px;
             white-space: nowrap;
         }
 
         td {
             padding: 8px;
             border-bottom: 1px solid #f0f0f0;
-            font-size: 12px;
+            font-size: 15px;
         }
 
         tbody tr {
@@ -303,7 +304,7 @@
             display: inline-block;
             padding: 5px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 15px;
             font-weight: 600;
             text-transform: uppercase;
         }
@@ -351,7 +352,7 @@
             padding: 8px 12px;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 16px;
             transition: all 0.3s ease;
         }
 
@@ -473,7 +474,7 @@
         }
 
         .calendar-day-date {
-            font-size: 14px;
+            font-size: 16px;
             color: #666;
         }
 
@@ -504,7 +505,7 @@
 
         .shift-title {
             font-weight: 600;
-            font-size: 14px;
+            font-size: 16px;
             color: #667eea;
             margin-bottom: 10px;
         }
@@ -515,7 +516,7 @@
             background: white;
             border: 1px solid #e0e0e0;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 16px;
             color: #333;
             position: relative;
         }
@@ -598,7 +599,7 @@
         .selected-count {
             color: #dc3545;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         /* Link Styles */
@@ -616,7 +617,7 @@
         /* ID Cell */
         .id-cell {
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 15px;
             color: #666;
         }
 
@@ -635,7 +636,7 @@
             padding: 3px 8px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 10px;
+            font-size: 13px;
             margin-left: 5px;
             transition: all 0.3s ease;
             display: inline-flex;
@@ -667,7 +668,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             font-family: monospace;
-            font-size: 11px;
+            font-size: 14px;
         }
 
         /* Toast Notification */
@@ -713,7 +714,7 @@
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 500;
             display: inline-flex;
             align-items: center;
@@ -757,7 +758,7 @@
         .firebase-dropdown-item {
             padding: 6px 10px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 14px;
             transition: background 0.2s ease;
             display: flex;
             align-items: center;
@@ -1020,7 +1021,7 @@
                                 <td>{{ c.email or 'N/A' }}</td>
                                 <td>
                                     <form method="POST" action="/update_subscription/{{ c._id }}" class="form-inline">
-                                        <select name="subscription_type" onchange="this.form.submit()" style="min-width: 90px; font-size: 11px; padding: 4px;">
+                                        <select name="subscription_type" onchange="this.form.submit()" style="min-width: 90px; font-size: 14px; padding: 4px;">
                                             <option value="monthly" {% if c.subscription_type == 'monthly' %}selected{% endif %}>Monthly</option>
                                             <option value="yearly" {% if c.subscription_type == 'yearly' %}selected{% endif %}>Yearly</option>
                                         </select>
@@ -1030,7 +1031,7 @@
                                     {{ c.next_payment_date }}
                                     <br>
                                     <input type="checkbox" class="test-overdue-checkbox" data-client-id="{{ c._id }}" data-client-name="{{ c.full_name }}" onchange="simulateOverduePayment(this)" style="cursor: pointer; margin-top: 5px;">
-                                    <br><small style="color: #ff6b6b; font-size: 9px;">TEST: Simulate Overdue</small>
+                                    <br><small style="color: #ff6b6b; font-size: 12px;">TEST: Simulate Overdue</small>
                                 </td>
                                 <td>
                                     <input type="checkbox" class="payment-checkbox" onchange="confirmPayment('{{ c._id }}', '{{ c.full_name }}', '{{ c.subscription_type }}', this.checked)" style="cursor: pointer;">
@@ -1071,12 +1072,12 @@
                                                 <span class="badge badge-active firebase-status-badge">✅ Active</span>
                                             {% endif %}
                                         </div>
-                                        <small style="font-size: 10px; color: #666; display: block; margin-bottom: 5px;">UID: {{ c.firebase_uid[:8] }}...</small>
+                                        <small style="font-size: 13px; color: #666; display: block; margin-bottom: 5px;">UID: {{ c.firebase_uid[:8] }}...</small>
                                         {% if c.account_disabled_date %}
-                                        <small style="font-size: 10px; color: #999; display: block; margin-bottom: 5px;">Since: {{ c.account_disabled_date }}</small>
+                                        <small style="font-size: 13px; color: #999; display: block; margin-bottom: 5px;">Since: {{ c.account_disabled_date }}</small>
                                         {% endif %}
                                     {% else %}
-                                        <span style="color: #666; font-size: 12px;">⚠️ Not Linked</span>
+                                        <span style="color: #666; font-size: 15px;">⚠️ Not Linked</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -1084,7 +1085,7 @@
                                             id="widget-select-{{ c._id }}"
                                             data-previous-value="{% if c.get('external_widget_disabled') %}disabled{% else %}enabled{% endif %}"
                                             onchange="toggleExternalWidget('{{ c._id }}', '{{ c.full_name }}', this.value, this)"
-                                            style="padding: 4px; font-size: 11px; border-radius: 6px; border: 2px solid #e0e0e0; min-width: 90px;">
+                                            style="padding: 4px; font-size: 14px; border-radius: 6px; border: 2px solid #e0e0e0; min-width: 90px;">
                                         <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
                                         <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
                                     </select>
@@ -1107,11 +1108,11 @@
                                     </div>
                                     {% else %}
                                         {% if c.email %}
-                                        <button class="btn btn-sm btn-primary" onclick="autoLinkFirebase('{{ c._id }}', '{{ c.email }}', '{{ c.full_name }}')" style="font-size: 11px; padding: 4px 8px;">
+                                        <button class="btn btn-sm btn-primary" onclick="autoLinkFirebase('{{ c._id }}', '{{ c.email }}', '{{ c.full_name }}')" style="font-size: 14px; padding: 4px 8px;">
                                             🔗 Auto-Link
                                         </button>
                                         {% else %}
-                                        <span style="color: #999; font-size: 11px;">No email</span>
+                                        <span style="color: #999; font-size: 14px;">No email</span>
                                         {% endif %}
                                     {% endif %}
                                 </td>
@@ -1187,12 +1188,12 @@
                                                 <span class="badge badge-active firebase-status-badge">✅ Active</span>
                                             {% endif %}
                                         </div>
-                                        <small style="font-size: 10px; color: #666; display: block; margin-bottom: 5px;">UID: {{ crew.firebase_uid[:8] }}...</small>
+                                        <small style="font-size: 13px; color: #666; display: block; margin-bottom: 5px;">UID: {{ crew.firebase_uid[:8] }}...</small>
                                         {% if crew.account_disabled_date %}
-                                        <small style="font-size: 10px; color: #999; display: block; margin-bottom: 5px;">Since: {{ crew.account_disabled_date }}</small>
+                                        <small style="font-size: 13px; color: #999; display: block; margin-bottom: 5px;">Since: {{ crew.account_disabled_date }}</small>
                                         {% endif %}
                                     {% else %}
-                                        <span style="color: #666; font-size: 12px;">⚠️ Not Linked</span>
+                                        <span style="color: #666; font-size: 15px;">⚠️ Not Linked</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ crew.created_at.strftime('%Y-%m-%d %H:%M') if crew.created_at else 'N/A' }}</td>
@@ -1213,7 +1214,7 @@
                                         </div>
                                     </div>
                                     {% else %}
-                                        <span style="color: #999; font-size: 11px;">No Firebase account</span>
+                                        <span style="color: #999; font-size: 14px;">No Firebase account</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -1248,7 +1249,7 @@
                     </div>
                     <div style="margin: 20px 0; color: #666;">
                         <p style="font-size: 16px; margin: 10px 0;">⏰ Valid for: <strong id="codeExpiresIn">5 minutes</strong></p>
-                        <p style="font-size: 14px; margin: 10px 0; color: #999;">Expires at: <span id="codeExpiresAt">--</span></p>
+                        <p style="font-size: 16px; margin: 10px 0; color: #999;">Expires at: <span id="codeExpiresAt">--</span></p>
                     </div>
                     <div style="margin: 20px 0;">
                         <button class="btn btn-primary" onclick="copyGeneratedCode()" style="margin: 5px;">
