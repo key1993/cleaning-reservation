@@ -3,7 +3,7 @@ Firebase Admin SDK service for managing user accounts
 """
 import os
 import firebase_admin
-from firebase_admin import credentials, auth, firestore
+from firebase_admin import credentials, auth, firestore, messaging
 from datetime import datetime, timedelta
 
 # Initialize Firebase Admin SDK
@@ -458,5 +458,91 @@ def generate_ebsher_code():
         return {
             "success": False,
             "error": f"Error generating code: {str(e)}"
+        }
+
+def send_fcm_notification(fcm_token, title, body, data=None):
+    """
+    Send an FCM push notification to a device using Firebase Cloud Messaging
+    
+    Args:
+        fcm_token: FCM device token
+        title: Notification title
+        body: Notification body text
+        data: Optional dictionary of custom data fields
+        
+    Returns:
+        dict with 'success' (bool) and 'message_id' or 'error'
+    """
+    try:
+        if firebase_app is None:
+            initialize_firebase()
+        
+        if firebase_app is None:
+            return {
+                "success": False,
+                "error": "Firebase not initialized"
+            }
+        
+        if not fcm_token:
+            return {
+                "success": False,
+                "error": "FCM token is required"
+            }
+        
+        # Ensure all data values are strings (FCM requirement)
+        fcm_data = {}
+        if data:
+            for key, value in data.items():
+                fcm_data[str(key)] = str(value) if value is not None else ""
+        
+        # Build the message
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body
+            ),
+            data=fcm_data,
+            token=fcm_token,
+            android=messaging.AndroidConfig(
+                priority='high'
+            ),
+            apns=messaging.APNSConfig(
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        sound='default',
+                        badge=1
+                    )
+                )
+            )
+        )
+        
+        # Send the message
+        response = messaging.send(message)
+        print(f"✅ FCM notification sent successfully: {response}")
+        
+        return {
+            "success": True,
+            "message_id": response
+        }
+        
+    except messaging.UnregisteredError:
+        print(f"⚠️ FCM token is unregistered (device may have uninstalled app): {fcm_token[:20]}...")
+        return {
+            "success": False,
+            "error": "FCM token is unregistered"
+        }
+    except messaging.InvalidArgumentError as e:
+        print(f"❌ Invalid FCM token or argument: {e}")
+        return {
+            "success": False,
+            "error": f"Invalid FCM token or argument: {str(e)}"
+        }
+    except Exception as e:
+        print(f"❌ Error sending FCM notification: {e}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "error": f"Failed to send notification: {str(e)}"
         }
 

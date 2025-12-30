@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, render_template, sessio
 from db import reservations_collection, clients_collection, disabled_slots_collection, cleaning_crew_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
-from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password, create_firebase_user
+from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password, create_firebase_user, send_fcm_notification
 
 import requests
 import urllib.parse
@@ -21,6 +21,7 @@ def login_required(f):
     return decorated_function
 
 clients_collection = db['clients']
+users_collection = db['users']
 
 routes = Blueprint("routes", __name__)
 
@@ -747,6 +748,238 @@ def coming_over():
         }), 200
         
     except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+@routes.route("/api/send_notification", methods=["POST"])
+def send_notification():
+    """
+    Send FCM push notification to user when crew presses "Coming Over"
+    Called by Flutter app after crew presses "Coming Over" button
+    """
+    try:
+        data = request.json
+        
+        # Step 1: Validate required fields
+        reservation_id = data.get("reservation_id") if data else None
+        notification_type = data.get("notification_type") if data else None
+        title = data.get("title") if data else None
+        body = data.get("body") if data else None
+        notification_data = data.get("data") if data else None
+        user_email = data.get("user_email") if data else None
+        user_id = data.get("user_id") if data else None
+        
+        if not reservation_id or not notification_type or not title or not body:
+            return jsonify({
+                "success": False,
+                "error": "reservation_id, notification_type, title, and body are required"
+            }), 400
+        
+        # Step 2: Find reservation
+        try:
+            reservation = reservations_collection.find_one({"_id": ObjectId(reservation_id)})
+        except:
+            return jsonify({
+                "success": False,
+                "error": "Invalid reservation_id format"
+            }), 400
+        
+        if not reservation:
+            return jsonify({
+                "success": False,
+                "error": "Reservation not found"
+            }), 404
+        
+        # Step 3: Get FCM token
+        # Try multiple methods to find FCM token
+        fcm_token = None
+        
+        # Option A: FCM token stored in reservation document
+        fcm_token = reservation.get("fcm_token")
+        
+        # Option B: FCM token stored in user document (users collection)
+        if not fcm_token:
+            user_identifier = user_email or user_id or reservation.get("user_id") or reservation.get("email")
+            if user_identifier:
+                # Try to find user by email
+                if user_email or reservation.get("email"):
+                    email_to_search = user_email or reservation.get("email")
+                    user_doc = users_collection.find_one({"email": email_to_search})
+                    if user_doc:
+                        fcm_token = user_doc.get("fcm_token")
+                
+                # Try to find user by user_id
+                if not fcm_token and user_id:
+                    try:
+                        user_doc = users_collection.find_one({"_id": ObjectId(user_id)})
+                        if user_doc:
+                            fcm_token = user_doc.get("fcm_token")
+                    except:
+                        pass
+                
+                # Try to find user by user_id string field
+                if not fcm_token:
+                    user_doc = users_collection.find_one({"user_id": user_identifier})
+                    if user_doc:
+                        fcm_token = user_doc.get("fcm_token")
+        
+        # Option C: FCM token stored in clients collection
+        if not fcm_token:
+            user_identifier = user_email or user_id or reservation.get("user_id") or reservation.get("email")
+            if user_identifier:
+                # Try by email
+                if user_email or reservation.get("email"):
+                    email_to_search = user_email or reservation.get("email")
+                    client_doc = clients_collection.find_one({"email": email_to_search})
+                    if client_doc:
+                        fcm_token = client_doc.get("fcm_token")
+                
+                # Try by phone if available
+                if not fcm_token and reservation.get("phone"):
+                    client_doc = clients_collection.find_one({"phone": reservation.get("phone")})
+                    if client_doc:
+                        fcm_token = client_doc.get("fcm_token")
+        
+        if not fcm_token:
+            return jsonify({
+                "success": False,
+                "error": "FCM token not found for user"
+            }), 404
+        
+        # Step 4: Prepare notification data
+        # Convert notification_data dict values to strings (FCM requires string values)
+        fcm_data = {}
+        if notification_data:
+            for key, value in notification_data.items():
+                fcm_data[str(key)] = str(value)
+        
+        # Add reservation_id and notification_type to data
+        fcm_data["reservation_id"] = str(reservation_id)
+        fcm_data["notification_type"] = str(notification_type)
+        
+        # Step 5: Send FCM notification
+        result = send_fcm_notification(
+            fcm_token=fcm_token,
+            title=title,
+            body=body,
+            data=fcm_data
+        )
+        
+        if not result.get("success"):
+            return jsonify({
+                "success": False,
+                "error": result.get("error", "Failed to send notification")
+            }), 500
+        
+        return jsonify({
+            "success": True,
+            "message": "Notification sent successfully",
+            "message_id": result.get("message_id")
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error in send_notification endpoint: {e}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+@routes.route("/api/update_fcm_token", methods=["POST"])
+def update_fcm_token():
+    """
+    Endpoint to receive and store FCM tokens from Flutter app
+    Can be called during registration, login, or when token is refreshed
+    """
+    try:
+        data = request.json
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Request body is required"
+            }), 400
+        
+        fcm_token = data.get("fcm_token")
+        user_email = data.get("user_email")
+        user_id = data.get("user_id")
+        
+        if not fcm_token:
+            return jsonify({
+                "success": False,
+                "error": "fcm_token is required"
+            }), 400
+        
+        if not user_email and not user_id:
+            return jsonify({
+                "success": False,
+                "error": "user_email or user_id is required"
+            }), 400
+        
+        updated = False
+        
+        # Try to update in users collection
+        if user_email:
+            result = users_collection.update_one(
+                {"email": user_email},
+                {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": datetime.utcnow()}},
+                upsert=False
+            )
+            if result.matched_count > 0:
+                updated = True
+        
+        if not updated and user_id:
+            try:
+                result = users_collection.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": datetime.utcnow()}},
+                    upsert=False
+                )
+                if result.matched_count > 0:
+                    updated = True
+            except:
+                # Try by user_id field if ObjectId fails
+                result = users_collection.update_one(
+                    {"user_id": user_id},
+                    {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": datetime.utcnow()}},
+                    upsert=False
+                )
+                if result.matched_count > 0:
+                    updated = True
+        
+        # Also try to update in clients collection
+        if user_email:
+            clients_collection.update_one(
+                {"email": user_email},
+                {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": datetime.utcnow()}},
+                upsert=False
+            )
+        
+        # Also update in reservation if user_id matches
+        if user_id:
+            reservations_collection.update_many(
+                {"user_id": user_id},
+                {"$set": {"fcm_token": fcm_token}}
+            )
+        
+        if updated:
+            return jsonify({
+                "success": True,
+                "message": "FCM token updated successfully"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": "User not found"
+            }), 404
+        
+    except Exception as e:
+        print(f"❌ Error in update_fcm_token endpoint: {e}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return jsonify({
             "success": False,
             "error": f"Internal server error: {str(e)}"
