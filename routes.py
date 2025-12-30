@@ -888,6 +888,105 @@ def send_notification():
             "error": f"Internal server error: {str(e)}"
         }), 500
 
+@routes.route("/api/send_notification_to_client", methods=["POST"])
+def send_notification_to_client():
+    """
+    Send FCM notification to a specific client by email or user_id
+    Used by admin panel to send custom notifications
+    """
+    try:
+        data = request.json
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Request body is required"
+            }), 400
+        
+        user_email = data.get("user_email")
+        user_id = data.get("user_id")
+        title = data.get("title", "Notification")
+        body = data.get("body", "")
+        notification_data = data.get("data", {})
+        
+        if not user_email and not user_id:
+            return jsonify({
+                "success": False,
+                "error": "user_email or user_id is required"
+            }), 400
+        
+        if not body:
+            return jsonify({
+                "success": False,
+                "error": "body (notification message) is required"
+            }), 400
+        
+        # Find FCM token
+        fcm_token = None
+        
+        # Try to find in clients collection
+        if user_email:
+            client_doc = clients_collection.find_one({"email": user_email})
+            if client_doc:
+                fcm_token = client_doc.get("fcm_token")
+        
+        # Try to find in users collection
+        if not fcm_token:
+            if user_email:
+                user_doc = users_collection.find_one({"email": user_email})
+                if user_doc:
+                    fcm_token = user_doc.get("fcm_token")
+            elif user_id:
+                try:
+                    user_doc = users_collection.find_one({"_id": ObjectId(user_id)})
+                    if user_doc:
+                        fcm_token = user_doc.get("fcm_token")
+                except:
+                    user_doc = users_collection.find_one({"user_id": user_id})
+                    if user_doc:
+                        fcm_token = user_doc.get("fcm_token")
+        
+        if not fcm_token:
+            return jsonify({
+                "success": False,
+                "error": "FCM token not found for this client"
+            }), 404
+        
+        # Prepare notification data
+        fcm_data = {}
+        if notification_data:
+            for key, value in notification_data.items():
+                fcm_data[str(key)] = str(value) if value is not None else ""
+        
+        # Send FCM notification
+        result = send_fcm_notification(
+            fcm_token=fcm_token,
+            title=title,
+            body=body,
+            data=fcm_data
+        )
+        
+        if not result.get("success"):
+            return jsonify({
+                "success": False,
+                "error": result.get("error", "Failed to send notification")
+            }), 500
+        
+        return jsonify({
+            "success": True,
+            "message": "Notification sent successfully",
+            "message_id": result.get("message_id")
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error in send_notification_to_client endpoint: {e}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
 @routes.route("/api/update_fcm_token", methods=["POST"])
 def update_fcm_token():
     """

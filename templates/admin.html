@@ -1002,6 +1002,7 @@
                                 <th>System Type</th>
                                 <th>HA URL</th>
                                 <th>HA Token</th>
+                                <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
                                 <th>Firebase Actions</th>
@@ -1060,6 +1061,21 @@
                                         <button class="copy-btn" onclick="copyToken('{{ c.ha_token }}', this)" title="Copy full token">
                                             📋 Copy
                                         </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="token-cell">
+                                        <span class="token-text">{{ c.fcm_token[:20] if c.fcm_token else 'N/A' }}{% if c.fcm_token %}...{% endif %}</span>
+                                        {% if c.fcm_token %}
+                                        <button class="copy-btn" onclick="copyToken('{{ c.fcm_token }}', this)" title="Copy full token">
+                                            📋 Copy
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" onclick="openNotificationDialog('{{ c._id }}', '{{ c.email or '' }}', '{{ c.full_name }}', '{{ c.fcm_token }}')" style="font-size: 12px; padding: 2px 6px; margin-top: 4px; width: 100%;">
+                                            📤 Send Notification
+                                        </button>
+                                        {% else %}
+                                        <span style="color: #999; font-size: 12px;">No token</span>
                                         {% endif %}
                                     </div>
                                 </td>
@@ -2583,6 +2599,190 @@
             document.getElementById('calendarModal').style.display = 'none';
             selectedCalendarDate = null;
         }
+
+        // Notification Dialog Functions
+        function openNotificationDialog(clientId, clientEmail, clientName, fcmToken) {
+            document.getElementById('notificationClientId').value = clientId;
+            document.getElementById('notificationClientEmail').value = clientEmail;
+            document.getElementById('notificationClientName').textContent = clientName;
+            document.getElementById('notificationTitle').value = 'Notification';
+            document.getElementById('notificationBody').value = '';
+            document.getElementById('notificationModal').style.display = 'block';
+        }
+
+        function closeNotificationDialog() {
+            document.getElementById('notificationModal').style.display = 'none';
+            document.getElementById('notificationBody').value = '';
+            document.getElementById('notificationTitle').value = 'Notification';
+        }
+
+        function sendNotificationToClient() {
+            const clientId = document.getElementById('notificationClientId').value;
+            const clientEmail = document.getElementById('notificationClientEmail').value;
+            const title = document.getElementById('notificationTitle').value.trim();
+            const body = document.getElementById('notificationBody').value.trim();
+
+            if (!body) {
+                alert('Please enter a notification message');
+                return;
+            }
+
+            if (!title) {
+                alert('Please enter a notification title');
+                return;
+            }
+
+            const sendButton = document.getElementById('sendNotificationBtn');
+            const originalText = sendButton.innerHTML;
+            sendButton.innerHTML = '⏳ Sending...';
+            sendButton.disabled = true;
+
+            fetch('/api/send_notification_to_client', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_email: clientEmail,
+                    user_id: clientId,
+                    title: title,
+                    body: body,
+                    data: {
+                        type: 'admin_notification',
+                        source: 'admin_panel'
+                    }
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✅ Notification sent successfully!');
+                    closeNotificationDialog();
+                } else {
+                    alert('❌ Failed to send notification: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error sending notification: ' + error.message);
+            })
+            .finally(() => {
+                sendButton.innerHTML = originalText;
+                sendButton.disabled = false;
+            });
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const notificationModal = document.getElementById('notificationModal');
+            if (event.target == notificationModal) {
+                closeNotificationDialog();
+            }
+        }
     </script>
+
+    <!-- Notification Dialog Modal -->
+    <div id="notificationModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>📤 Send Notification</h2>
+                <span class="close" onclick="closeNotificationDialog()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 15px;">
+                    <strong>Client:</strong> <span id="notificationClientName"></span>
+                </div>
+                <input type="hidden" id="notificationClientId">
+                <input type="hidden" id="notificationClientEmail">
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="notificationTitle" style="display: block; margin-bottom: 5px; font-weight: 600;">Title:</label>
+                    <input type="text" id="notificationTitle" value="Notification" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="notificationBody" style="display: block; margin-bottom: 5px; font-weight: 600;">Message:</label>
+                    <textarea id="notificationBody" rows="5" placeholder="Enter notification message..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 15px; border-top: 1px solid #ddd;">
+                <button class="btn btn-secondary" onclick="closeNotificationDialog()">Cancel</button>
+                <button class="btn btn-primary" id="sendNotificationBtn" onclick="sendNotificationToClient()">📤 Send Notification</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Notification Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            border: 1px solid #888;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            opacity: 0.9;
+        }
+
+        .close:hover,
+        .close:focus {
+            opacity: 1;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+        }
+    </style>
 </body>
 </html>
