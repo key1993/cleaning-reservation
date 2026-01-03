@@ -154,6 +154,8 @@ def get_reservations_with_details():
             # Build the response with requested fields
             # crew_price_status defaults to "No" if not set
             crew_price_status = res.get("crew_price_status", "No")
+            # Price to be collected is the cost submitted to the client
+            price_to_be_collected = res.get("cost", "N/A")
             reservation_detail = {
                 "longitude": res.get("longitude", "N/A"),
                 "latitude": res.get("latitude", "N/A"),
@@ -163,7 +165,8 @@ def get_reservations_with_details():
                 "phone_number": phone_number,
                 "panel_size": res.get("panel_size", "N/A"),
                 "client_name": client_name,
-                "crew_price_status": crew_price_status
+                "crew_price_status": crew_price_status,
+                "price_to_be_collected": price_to_be_collected
             }
             
             result.append(reservation_detail)
