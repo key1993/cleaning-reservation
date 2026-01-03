@@ -152,6 +152,8 @@ def get_reservations_with_details():
                 client_name = res.get("name", "N/A")
             
             # Build the response with requested fields
+            # crew_price_status defaults to "No" if not set
+            crew_price_status = res.get("crew_price_status", "No")
             reservation_detail = {
                 "longitude": res.get("longitude", "N/A"),
                 "latitude": res.get("latitude", "N/A"),
@@ -160,7 +162,8 @@ def get_reservations_with_details():
                 "time_slot": res.get("time_slot", "N/A"),
                 "phone_number": phone_number,
                 "panel_size": res.get("panel_size", "N/A"),
-                "client_name": client_name
+                "client_name": client_name,
+                "crew_price_status": crew_price_status
             }
             
             result.append(reservation_detail)
@@ -282,10 +285,10 @@ def update_crew_price():
                     "error": f"No reservation found matching client_name: {client_name}, date: {date}, time: {time}"
                 }), 404
         
-        # Update the reservation with crew price
+        # Update the reservation with crew price and set crew_price_status to "Yes"
         reservations_collection.update_one(
             {"_id": reservation["_id"]},
-            {"$set": {"crew_price": crew_price, "crew_price_updated_at": datetime.utcnow()}}
+            {"$set": {"crew_price": crew_price, "crew_price_status": "Yes", "crew_price_updated_at": datetime.utcnow()}}
         )
         
         return jsonify({
