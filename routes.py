@@ -603,6 +603,13 @@ def update_cost():
     )
     return redirect('/admin')
 
+@routes.route('/cost/')
+@routes.route('/cost')
+def cost_index():
+    """GET /cost/ or /cost without id returns 400 - reservation id is required."""
+    return jsonify({"error": "Reservation id required", "usage": "GET /cost/<reservation_id>"}), 400
+
+
 @routes.route('/cost/<id>', methods=['GET'])
 def get_cost(id):
     try:
