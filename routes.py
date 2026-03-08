@@ -1057,11 +1057,33 @@ def update_fcm_token():
         
         # Also try to update in clients collection
         if user_email:
-            clients_collection.update_one(
-                {"email": user_email},
-                {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": datetime.utcnow()}},
-                upsert=False
-            )
+            client_doc = clients_collection.find_one({"email": user_email})
+            if client_doc:
+                # One-time pass after device reset: allow this login once, then clear the pass
+                has_reset_pass = client_doc.get("device_reset_allow_next_login")
+                exp = client_doc.get("device_reset_expires_at")
+                now = datetime.utcnow()
+                exp_ok = exp and (exp if isinstance(exp, datetime) else now) >= now
+                if has_reset_pass and not exp_ok:
+                    return jsonify({
+                        "success": False,
+                        "error": "device_reset_expired",
+                        "message": "Device reset pass has expired. Please ask the admin to reset your device again."
+                    }), 403
+                update_op = {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": now}}
+                if has_reset_pass:
+                    update_op["$unset"] = {"device_reset_allow_next_login": "", "device_reset_expires_at": ""}
+                clients_collection.update_one(
+                    {"email": user_email},
+                    update_op,
+                    upsert=False
+                )
+            else:
+                clients_collection.update_one(
+                    {"email": user_email},
+                    {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": datetime.utcnow()}},
+                    upsert=False
+                )
         
         # Also update in reservation if user_id matches
         if user_id:
@@ -1089,6 +1111,33 @@ def update_fcm_token():
             "success": False,
             "error": f"Internal server error: {str(e)}"
         }), 500
+
+@routes.route("/api/client_device_reset_status", methods=["GET"])
+def client_device_reset_status():
+    """
+    For the mobile app: check if this client has an active one-time pass (after admin reset device).
+    If true, the app can allow one-time login from the current device; the next update_fcm_token will consume the pass.
+    """
+    try:
+        user_email = request.args.get("user_email")
+        if not user_email:
+            return jsonify({"success": False, "error": "user_email is required"}), 400
+        client = clients_collection.find_one({"email": user_email})
+        if not client:
+            return jsonify({"success": False, "device_reset_pending": False}), 200
+        has_pass = client.get("device_reset_allow_next_login", False)
+        exp = client.get("device_reset_expires_at")
+        now = datetime.utcnow()
+        exp_ok = exp and (exp if isinstance(exp, datetime) else now) >= now
+        device_reset_pending = has_pass and exp_ok
+        return jsonify({
+            "success": True,
+            "device_reset_pending": device_reset_pending,
+            "expires_at": exp.isoformat() if device_reset_pending and hasattr(exp, "isoformat") else None
+        }), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @routes.route("/api/cancel_reservation", methods=["POST"])
 def cancel_reservation():
@@ -1892,6 +1941,55 @@ def delete_client_firebase_account(client_id):
         else:
             return jsonify({"success": False, "error": "Failed to delete Firebase account"}), 500
             
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@routes.route("/reset_client_device/<client_id>", methods=["POST"])
+def reset_client_device(client_id):
+    """
+    Reset the client's device: remove stored FCM token so the current device loses access,
+    and issue a one-time pass so the user can log in once from a new device.
+    After the next successful login (and FCM token update), the one-time pass is consumed.
+    """
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+
+        firebase_uid = client.get("firebase_uid")
+        if not firebase_uid:
+            return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
+
+        client_email = client.get("email")
+        # Remove device/FCM token from client so current device is no longer tied
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$unset": {
+                "fcm_token": "",
+                "fcm_token_updated_at": ""
+            }}
+        )
+        # Also clear from users collection if same email exists
+        if client_email:
+            users_collection.update_one(
+                {"email": client_email},
+                {"$unset": {"fcm_token": "", "fcm_token_updated_at": ""}}
+            )
+        # One-time pass: allow the next login (next FCM token update) from any device; expires in 24 hours
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {
+                "device_reset_allow_next_login": True,
+                "device_reset_expires_at": expires_at
+            }}
+        )
+        return jsonify({
+            "success": True,
+            "message": "Device reset. The user can log in once from a new device within 24 hours; the one-time pass will then be consumed.",
+            "expires_at": expires_at.isoformat()
+        }), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

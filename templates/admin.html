@@ -1119,6 +1119,7 @@
                                                 <a href="#" onclick="event.preventDefault(); handleFirebaseAction('disable', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item warning">🔒 Disable Account</a>
                                             {% endif %}
                                             <a href="#" onclick="event.preventDefault(); handleFirebaseAction('reset_password', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item">🔑 Reset Password</a>
+                                            <a href="#" onclick="event.preventDefault(); handleFirebaseAction('reset_device', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item">📱 Reset Device</a>
                                             <a href="#" onclick="event.preventDefault(); handleFirebaseAction('delete', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item danger">🗑️ Delete Firebase Account</a>
                                         </div>
                                     </div>
@@ -1921,6 +1922,29 @@
                 });
             } else if (action === 'reset_password') {
                 resetPassword(clientId, clientName);
+            } else if (action === 'reset_device') {
+                if (!confirm(`Reset device for ${clientName}?\n\nThis will remove the current device from the account and issue a one-time pass. The user can log in once from a new device within 24 hours.`)) {
+                    return;
+                }
+                fetch(`/reset_client_device/${clientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message || 'Device reset. User can log in once from a new device within 24 hours.');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to reset device'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error resetting device');
+                });
             } else if (action === 'delete') {
                 if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
                     return;
