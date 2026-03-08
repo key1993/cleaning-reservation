@@ -363,12 +363,13 @@ def clear_firestore_device_for_user(firebase_uid):
         if db_fs is None:
             return False
         doc_ref = db_fs.collection("users").document(firebase_uid)
-        # 1. Active device ID → null  2. Active device name → null  3. loggedin → false
+        # 1. Active device ID → null  2. Active device name → null  3. isloggedin → false
         updates = {
             "activeDeviceId": None,
             "activeDeviceName": None,
             "active_device_id": None,
             "active_device_name": None,
+            "isloggedin": False,
             "loggedin": False,
             "loggedIn": False,
         }
