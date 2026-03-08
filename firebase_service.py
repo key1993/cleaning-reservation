@@ -351,6 +351,55 @@ def get_firestore_db():
         print(f"❌ Error getting Firestore client: {e}")
         return None
 
+
+# Firestore field sentinel to delete a field (used for clearing device binding)
+try:
+    _DELETE_FIELD = getattr(firestore, "DELETE_FIELD", None)
+    if _DELETE_FIELD is None:
+        from google.cloud.firestore_v1._helpers import DELETE_FIELD as _DELETE_FIELD
+except ImportError:
+    _DELETE_FIELD = None
+
+
+def clear_firestore_device_for_user(firebase_uid):
+    """
+    Clear device-binding data in Firestore for this user so the app no longer
+    shows "account already activated on another device". After this, the next
+    device that logs in can become the authorized device (one-time pass in MongoDB).
+    Tries common collection paths: users/<uid> and clients/<uid>.
+    """
+    if _DELETE_FIELD is None:
+        print("⚠️ Cannot clear Firestore device: DELETE_FIELD not available")
+        return False
+    try:
+        db_fs = get_firestore_db()
+        if db_fs is None:
+            return False
+        # Fields that apps often use to store "current device" / single-device binding
+        device_fields = [
+            "deviceId", "device_id", "fcmToken", "fcm_token",
+            "authorized_device_id", "authorizedDeviceId", "current_device",
+            "last_device_id", "lastDeviceId", "registered_device", "registeredDevice",
+        ]
+        updates = {f: _DELETE_FIELD for f in device_fields}
+        updated_any = False
+        for collection_name in ("users", "clients"):
+            doc_ref = db_fs.collection(collection_name).document(firebase_uid)
+            try:
+                doc_ref.update(updates)
+                print(f"✅ Cleared device fields in Firestore {collection_name}/{firebase_uid}")
+                updated_any = True
+            except Exception as e:
+                # Document might not exist or have no such fields - that's ok
+                if "NOT_FOUND" in str(e) or "No document to update" in str(e):
+                    pass
+                else:
+                    print(f"   Firestore {collection_name}/{firebase_uid}: {e}")
+        return updated_any
+    except Exception as e:
+        print(f"❌ Error clearing Firestore device for {firebase_uid}: {e}")
+        return False
+
 def generate_ebsher_code():
     """
     Generate a one-time registration code and store it in Firestore

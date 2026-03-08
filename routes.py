@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, render_template, sessio
 from db import reservations_collection, clients_collection, disabled_slots_collection, cleaning_crew_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
-from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password, create_firebase_user, send_fcm_notification
+from firebase_service import disable_firebase_user, enable_firebase_user, delete_firebase_user, get_firebase_user_by_email, reset_firebase_user_password, create_firebase_user, send_fcm_notification, clear_firestore_device_for_user
 
 import requests
 import urllib.parse
@@ -1967,6 +1967,9 @@ def reset_client_device(client_id):
         firebase_uid = client.get("firebase_uid")
         if not firebase_uid:
             return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
+
+        # Clear device-binding data in Firestore so app no longer shows "already activated on another device"
+        clear_firestore_device_for_user(firebase_uid)
 
         client_email = client.get("email")
         # Remove device/FCM token from client so current device is no longer tied
