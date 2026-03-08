@@ -355,7 +355,7 @@ def get_firestore_db():
 def clear_firestore_device_for_user(firebase_uid):
     """
     Reset device binding in Firestore for this user (document at users/<uid>).
-    Sets active device ID and active device name to null, and loggedin to false,
+    Sets active device ID and active device name to null, and isLoggedIn to false,
     so the app allows one-time login from a new device after admin presses Reset Device.
     """
     try:
@@ -363,19 +363,16 @@ def clear_firestore_device_for_user(firebase_uid):
         if db_fs is None:
             return False
         doc_ref = db_fs.collection("users").document(firebase_uid)
-        # 1. Active device ID → null  2. Active device name → null  3. logged-in flags → false (multiple keys for case sensitivity)
+        # 1. Active device ID → null  2. Active device name → null  3. isLoggedIn → false
         updates = {
             "activeDeviceId": None,
             "activeDeviceName": None,
             "active_device_id": None,
             "active_device_name": None,
-            "isloggedin": False,
-            "loggedin": False,
-            "loggedIn": False,
-            "isLoggedIn": False,  # app checks this exact casing
+            "isLoggedIn": False,
         }
         doc_ref.update(updates)
-        print(f"✅ Reset device in Firestore users/{firebase_uid}: activeDeviceId/activeDeviceName=null, loggedin=false")
+        print(f"✅ Reset device in Firestore users/{firebase_uid}: activeDeviceId/activeDeviceName=null, isLoggedIn=false")
         return True
     except Exception as e:
         if "NOT_FOUND" in str(e) or "No document to update" in str(e):
