@@ -363,7 +363,7 @@ def clear_firestore_device_for_user(firebase_uid):
         if db_fs is None:
             return False
         doc_ref = db_fs.collection("users").document(firebase_uid)
-        # 1. Active device ID → null  2. Active device name → null  3. isloggedin → false
+        # 1. Active device ID → null  2. Active device name → null  3. logged-in flags → false (multiple keys for case sensitivity)
         updates = {
             "activeDeviceId": None,
             "activeDeviceName": None,
@@ -372,6 +372,7 @@ def clear_firestore_device_for_user(firebase_uid):
             "isloggedin": False,
             "loggedin": False,
             "loggedIn": False,
+            "isLoggedIn": False,  # app checks this exact casing
         }
         doc_ref.update(updates)
         print(f"✅ Reset device in Firestore users/{firebase_uid}: activeDeviceId/activeDeviceName=null, loggedin=false")
