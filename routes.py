@@ -1065,17 +1065,9 @@ def update_fcm_token():
         if user_email:
             client_doc = clients_collection.find_one({"email": user_email})
             if client_doc:
-                # One-time pass after device reset: allow this login once, then clear the pass
+                # One-time pass after device reset: allow this login once, then clear the pass (no time limit)
                 has_reset_pass = client_doc.get("device_reset_allow_next_login")
-                exp = client_doc.get("device_reset_expires_at")
                 now = datetime.utcnow()
-                exp_ok = exp and (exp if isinstance(exp, datetime) else now) >= now
-                if has_reset_pass and not exp_ok:
-                    return jsonify({
-                        "success": False,
-                        "error": "device_reset_expired",
-                        "message": "Device reset pass has expired. Please ask the admin to reset your device again."
-                    }), 403
                 update_op = {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": now}}
                 if has_reset_pass:
                     update_op["$unset"] = {"device_reset_allow_next_login": "", "device_reset_expires_at": ""}
@@ -1151,14 +1143,11 @@ def client_device_reset_status():
         if not client:
             return jsonify({"success": False, "device_reset_pending": False}), 200
         has_pass = client.get("device_reset_allow_next_login", False)
-        exp = client.get("device_reset_expires_at")
-        now = datetime.utcnow()
-        exp_ok = exp and (exp if isinstance(exp, datetime) else now) >= now
-        device_reset_pending = has_pass and exp_ok
+        device_reset_pending = bool(has_pass)
         return jsonify({
             "success": True,
             "device_reset_pending": device_reset_pending,
-            "expires_at": exp.isoformat() if device_reset_pending and hasattr(exp, "isoformat") else None
+            "expires_at": None
         }), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1848,7 +1837,7 @@ def reset_client_device(client_id):
     """
     Reset the client's device: remove stored FCM token so the current device loses access,
     and issue a one-time pass so the user can log in once from a new device.
-    After the next successful login (and FCM token update), the one-time pass is consumed.
+    After the next successful login (and FCM token update), the one-time pass is consumed (no time limit).
     """
     try:
         client = clients_collection.find_one({"_id": ObjectId(client_id)})
@@ -1877,19 +1866,19 @@ def reset_client_device(client_id):
                 {"email": client_email},
                 {"$unset": {"fcm_token": "", "fcm_token_updated_at": ""}}
             )
-        # One-time pass: allow the next login (next FCM token update) from any device; expires in 24 hours
-        expires_at = datetime.utcnow() + timedelta(hours=24)
+        # One-time pass: allow the next login (next FCM token update) from any device; no time limit until used
         clients_collection.update_one(
             {"_id": ObjectId(client_id)},
             {"$set": {
-                "device_reset_allow_next_login": True,
-                "device_reset_expires_at": expires_at
+                "device_reset_allow_next_login": True
+            },
+             "$unset": {
+                "device_reset_expires_at": ""
             }}
         )
         return jsonify({
             "success": True,
-            "message": "Device reset. The user can log in once from a new device within 24 hours; the one-time pass will then be consumed.",
-            "expires_at": expires_at.isoformat()
+            "message": "Device reset. The user can log in once from a new device; after that, the new device becomes the active one.",
         }), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
