@@ -1061,7 +1061,7 @@ def update_fcm_token():
                 if result.matched_count > 0:
                     updated = True
         
-        # Also try to update in clients collection (or create client if new Firebase user)
+        # Also try to update in clients collection (or create/link client if new Firebase user)
         if user_email:
             client_doc = clients_collection.find_one({"email": user_email})
             if client_doc:
@@ -1078,29 +1078,46 @@ def update_fcm_token():
                 )
                 updated = True
             else:
-                # New Firebase user with no backend client: create client so they appear in admin
+                # New Firebase user with no backend client using this email.
+                # First, try to find an existing client by firebase_uid so we don't lose its data.
                 firebase_user = get_firebase_user_by_email(user_email)
                 firebase_uid = firebase_user.uid if firebase_user else None
                 now = datetime.utcnow()
-                signup_date = now.strftime("%Y-%m-%d")
-                next_payment = (now + timedelta(days=30)).strftime("%Y-%m-%d")
-                new_client = {
-                    "full_name": data.get("full_name") or user_email.split("@")[0] or "Pending",
-                    "signup_date": signup_date,
-                    "phone": data.get("phone") or "",
-                    "email": user_email,
-                    "location": "",
-                    "system_type": "pending",
-                    "ha_url": "",
-                    "ha_token": "",
-                    "subscription_type": "monthly",
-                    "next_payment_date": next_payment,
-                    "firebase_uid": firebase_uid,
-                    "fcm_token": fcm_token,
-                    "fcm_token_updated_at": now,
-                }
-                clients_collection.insert_one(new_client)
-                updated = True
+                if firebase_uid:
+                    existing_client = clients_collection.find_one({"firebase_uid": firebase_uid})
+                else:
+                    existing_client = None
+
+                if existing_client:
+                    # Link this email + device to the existing client without clearing other fields
+                    clients_collection.update_one(
+                        {"_id": existing_client["_id"]},
+                        {
+                            "$set": {
+                                "email": user_email,
+                                "fcm_token": fcm_token,
+                                "fcm_token_updated_at": now,
+                            }
+                        },
+                    )
+                    updated = True
+                else:
+                    # Truly new client: create minimal record so they appear in admin
+                    signup_date = now.strftime("%Y-%m-%d")
+                    next_payment = (now + timedelta(days=30)).strftime("%Y-%m-%d")
+                    new_client = {
+                        "full_name": data.get("full_name") or user_email.split("@")[0] or "Pending",
+                        "signup_date": signup_date,
+                        "phone": data.get("phone") or "",
+                        "email": user_email,
+                        "subscription_type": "monthly",
+                        "next_payment_date": next_payment,
+                        "firebase_uid": firebase_uid,
+                        "fcm_token": fcm_token,
+                        "fcm_token_updated_at": now,
+                    }
+                    clients_collection.insert_one(new_client)
+                    updated = True
         
         # Also update in reservation if user_id matches
         if user_id:
