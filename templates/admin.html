@@ -1041,7 +1041,6 @@
                                 <th>System Type</th>
                                 <th>Brain URL</th>
                                 <th>Brain Token</th>
-                                <th>Local Pi IP</th>
                                 <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
@@ -1107,7 +1106,6 @@
                                         {% endif %}
                                     </div>
                                 </td>
-                                <td style="max-width: 140px; font-size: 13px; word-break: break-all;">{{ c.local_pi_ip or '—' }}</td>
                                 <td>
                                     <div class="token-cell">
                                         <span class="token-text">{{ c.fcm_token[:20] if c.fcm_token else 'N/A' }}{% if c.fcm_token %}...{% endif %}</span>

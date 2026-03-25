@@ -2102,11 +2102,11 @@ def get_widget_status():
 @routes.route("/api/client_device_health", methods=["POST"])
 def client_device_health():
     """
-    Raspberry Pi (or Home Assistant) pushes local LAN IP and three health booleans.
+    Raspberry Pi (or Home Assistant) pushes health booleans.
     Authenticate with the same Brain token as other device APIs (ha_token in DB).
 
-    JSON body (all fields optional except you should send at least one metric):
-      ha_token, local_pi_ip, pi_ok, inverter_ok, solar_ok
+    JSON body (send at least one of pi_ok, inverter_ok, solar_ok):
+      ha_token, pi_ok, inverter_ok, solar_ok
     Token may instead be: ?ha_token=... or Authorization: Bearer <token>
     """
     try:
@@ -2137,23 +2137,17 @@ def client_device_health():
                 return bool(v)
             return None
 
-        local_pi_ip = data.get("local_pi_ip")
-        if local_pi_ip is not None:
-            local_pi_ip = str(local_pi_ip).strip()[:200] or None
-
         pi_ok = to_bool(data.get("pi_ok", data.get("pi_connection_ok")))
         inverter_ok = to_bool(data.get("inverter_ok"))
         solar_ok = to_bool(data.get("solar_ok"))
 
-        if local_pi_ip is None and pi_ok is None and inverter_ok is None and solar_ok is None:
+        if pi_ok is None and inverter_ok is None and solar_ok is None:
             return jsonify({
                 "success": False,
-                "error": "Send at least one of: local_pi_ip, pi_ok, inverter_ok, solar_ok",
+                "error": "Send at least one of: pi_ok, inverter_ok, solar_ok",
             }), 400
 
         update_doc = {"health_reported_at": datetime.utcnow()}
-        if local_pi_ip is not None:
-            update_doc["local_pi_ip"] = local_pi_ip
         if pi_ok is not None:
             update_doc["health_pi_ok"] = pi_ok
         if inverter_ok is not None:
@@ -2161,7 +2155,10 @@ def client_device_health():
         if solar_ok is not None:
             update_doc["health_solar_ok"] = solar_ok
 
-        clients_collection.update_one({"_id": client["_id"]}, {"$set": update_doc})
+        clients_collection.update_one(
+            {"_id": client["_id"]},
+            {"$set": update_doc, "$unset": {"local_pi_ip": ""}},
+        )
 
         return jsonify({"success": True, "message": "Health report stored"}), 200
 
