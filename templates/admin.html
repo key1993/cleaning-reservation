@@ -671,6 +671,41 @@
             font-size: 14px;
         }
 
+        .health-check-cell {
+            text-align: center;
+            vertical-align: middle;
+            min-width: 72px;
+        }
+
+        .health-dots {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .health-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid rgba(0, 0, 0, 0.12);
+        }
+
+        .health-dot--ok {
+            background: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+        }
+
+        .health-dot--bad {
+            background: #ef4444;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+        }
+
+        .health-dot--unknown {
+            background: #9ca3af;
+        }
+
         /* Toast Notification */
         .toast {
             position: fixed;
@@ -998,6 +1033,7 @@
                                 <th>Signup Date</th>
                                 <th>Phone</th>
                                 <th>Email</th>
+                                <th>Health check</th>
                                 <th>Subscription</th>
                                 <th>Next Payment</th>
                                 <th>Payment Due</th>
@@ -1005,6 +1041,7 @@
                                 <th>System Type</th>
                                 <th>Brain URL</th>
                                 <th>Brain Token</th>
+                                <th>Local Pi IP</th>
                                 <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
@@ -1022,6 +1059,13 @@
                                 <td>{{ c.signup_date }}</td>
                                 <td>{{ c.phone }}</td>
                                 <td>{{ c.email or 'N/A' }}</td>
+                                <td class="health-check-cell">
+                                    <div class="health-dots" title="Pi · Inverter · Solar (green=OK, red=fault, gray=no data)">
+                                        <span class="health-dot {% if c.get('health_pi_ok') == True %}health-dot--ok{% elif c.get('health_pi_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Pi connection"></span>
+                                        <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Inverter"></span>
+                                        <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Solar system"></span>
+                                    </div>
+                                </td>
                                 <td>
                                     <form method="POST" action="/update_subscription/{{ c._id }}" class="form-inline">
                                         <select name="subscription_type" onchange="this.form.submit()" style="min-width: 90px; font-size: 14px; padding: 4px;">
@@ -1063,6 +1107,7 @@
                                         {% endif %}
                                     </div>
                                 </td>
+                                <td style="max-width: 140px; font-size: 13px; word-break: break-all;">{{ c.local_pi_ip or '—' }}</td>
                                 <td>
                                     <div class="token-cell">
                                         <span class="token-text">{{ c.fcm_token[:20] if c.fcm_token else 'N/A' }}{% if c.fcm_token %}...{% endif %}</span>
