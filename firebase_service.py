@@ -170,33 +170,39 @@ def get_firebase_user(firebase_uid):
 
 def delete_firebase_user(firebase_uid):
     """
-    Delete a Firebase user account by UID
-    
+    Delete a Firebase user account by UID.
+
     Args:
         firebase_uid: Firebase user UID
-        
+
     Returns:
-        bool: True if successful, False otherwise
+        tuple[bool, str | None]: (True, None) if the user was deleted or already absent in
+            Firebase (safe to unlink in MongoDB). (False, message) if the SDK is unavailable
+            or the Admin API call failed.
     """
     try:
         if firebase_app is None:
             initialize_firebase()
-        
+
         if firebase_app is None:
-            print("Firebase not initialized. Cannot delete user.")
-            return False
-        
-        # Delete the user account
+            msg = (
+                "Firebase Admin SDK is not initialized. "
+                "Set FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON (and optionally FIREBASE_PROJECT_ID)."
+            )
+            print(f"⚠️ {msg}")
+            return False, msg
+
         auth.delete_user(firebase_uid)
         print(f"✅ Firebase user {firebase_uid} deleted successfully")
-        return True
-        
+        return True, None
+
     except auth.UserNotFoundError:
-        print(f"⚠️ Firebase user {firebase_uid} not found")
-        return False
+        print(f"⚠️ Firebase user {firebase_uid} not found (already removed; unlinking DB is OK)")
+        return True, None
+
     except Exception as e:
         print(f"❌ Error deleting Firebase user {firebase_uid}: {e}")
-        return False
+        return False, str(e)
 
 def get_firebase_user_by_email(email):
     """

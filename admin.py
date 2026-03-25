@@ -287,14 +287,14 @@ def delete_crew_firebase_account(crew_id):
         if not firebase_uid:
             return jsonify({"success": False, "error": "Crew member does not have a Firebase account linked"}), 400
         
-        if delete_firebase_user(firebase_uid):
+        ok, err = delete_firebase_user(firebase_uid)
+        if ok:
             cleaning_crew_collection.update_one(
                 {"_id": ObjectId(crew_id)},
                 {"$unset": {"firebase_uid": "", "account_disabled": "", "account_disabled_date": ""}}
             )
             return jsonify({"success": True, "message": "Firebase account deleted successfully"}), 200
-        else:
-            return jsonify({"success": False, "error": "Failed to delete Firebase account"}), 500
+        return jsonify({"success": False, "error": err or "Failed to delete Firebase account"}), 500
             
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -343,7 +343,7 @@ def delete_crew(crew_id):
         firebase_uid = crew.get("firebase_uid")
         if firebase_uid:
             from firebase_service import delete_firebase_user
-            delete_firebase_user(firebase_uid)
+            delete_firebase_user(firebase_uid)  # best-effort; crew row is removed regardless
         
         cleaning_crew_collection.delete_one({"_id": ObjectId(crew_id)})
         return jsonify({"success": True, "message": "Crew member deleted successfully"}), 200

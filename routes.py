@@ -1835,15 +1835,15 @@ def delete_client_firebase_account(client_id):
         if not firebase_uid:
             return jsonify({"success": False, "error": "Client does not have a Firebase account linked"}), 400
         
-        if delete_firebase_user(firebase_uid):
+        ok, err = delete_firebase_user(firebase_uid)
+        if ok:
             # Remove Firebase UID from client record
             clients_collection.update_one(
                 {"_id": ObjectId(client_id)},
                 {"$unset": {"firebase_uid": "", "account_disabled": "", "account_disabled_date": ""}}
             )
             return jsonify({"success": True, "message": "Firebase account deleted successfully"}), 200
-        else:
-            return jsonify({"success": False, "error": "Failed to delete Firebase account"}), 500
+        return jsonify({"success": False, "error": err or "Failed to delete Firebase account"}), 500
             
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
