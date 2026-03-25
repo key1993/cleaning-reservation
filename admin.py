@@ -142,7 +142,16 @@ def admin_dashboard():
         
         # Refresh clients list again after auto-disable
         clients = list(clients_collection.find())
-        
+
+        # Poll each client's Brain (HA) for Pi reachability + grid/solar input_booleans
+        try:
+            from ha_client_health import refresh_all_clients_health
+
+            refresh_all_clients_health(clients_collection)
+            clients = list(clients_collection.find())
+        except Exception as health_err:
+            print(f"⚠️ Client health poll failed: {health_err}")
+
         for r in reservations:
             r["_id"] = str(r["_id"])
         for crew in cleaning_crew:

@@ -1059,10 +1059,10 @@
                                 <td>{{ c.phone }}</td>
                                 <td>{{ c.email or 'N/A' }}</td>
                                 <td class="health-check-cell">
-                                    <div class="health-dots" title="Pi · Inverter · Solar (green=OK, red=fault, gray=no data)">
-                                        <span class="health-dot {% if c.get('health_pi_ok') == True %}health-dot--ok{% elif c.get('health_pi_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Pi connection"></span>
-                                        <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Inverter"></span>
-                                        <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Solar system"></span>
+                                    <div class="health-dots" title="Brain reachable · Grid · Solar (green=OK, red=fault, gray=no data)">
+                                        <span class="health-dot {% if c.get('health_pi_ok') == True %}health-dot--ok{% elif c.get('health_pi_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Brain (HA) reachable"></span>
+                                        <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Grid (input_boolean.grid_check: off=running)"></span>
+                                        <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Solar (input_boolean.solar_check: off=running)"></span>
                                     </div>
                                 </td>
                                 <td>

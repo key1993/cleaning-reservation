@@ -4,9 +4,10 @@ from admin import admin
 from auth import auth
 import os
 from pymongo import MongoClient
-from db import db  # and optionally, reservations_collection if needed
+from db import db, clients_collection  # and optionally, reservations_collection if needed
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from firebase_service import initialize_firebase
 import atexit
 
@@ -56,6 +57,28 @@ scheduler.add_job(
     name='Send payment reminders for due and overdue payments',
     replace_existing=True
 )
+
+def scheduled_client_health_poll():
+    """Poll each client's Home Assistant (Brain URL + token) for dashboard LEDs."""
+    try:
+        from ha_client_health import refresh_all_clients_health
+
+        refresh_all_clients_health(clients_collection)
+        print("[SCHEDULER] Client Brain health poll completed")
+    except Exception as e:
+        print(f"[SCHEDULER] Client health poll error: {e}")
+
+
+_health_interval = int(os.environ.get("HEALTH_POLL_INTERVAL_MINUTES", "15"))
+if _health_interval > 0:
+    scheduler.add_job(
+        func=scheduled_client_health_poll,
+        trigger=IntervalTrigger(minutes=_health_interval),
+        id="client_ha_health_poll",
+        name="Poll Brain (HA) health for all clients",
+        replace_existing=True,
+    )
+
 scheduler.start()
 
 # Shut down the scheduler when exiting the app
