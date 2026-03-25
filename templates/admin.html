@@ -975,9 +975,12 @@
                 <div class="card-header">
                     <div>
                         <div class="card-title">Registered Clients</div>
-                        <div class="card-subtitle">Total: {{ clients|length }} clients</div>
+                        <div class="card-subtitle" id="clientsTotalSubtitle">Total: {{ clients|length }} clients</div>
                     </div>
                     <div class="action-buttons">
+                        <button type="button" class="btn btn-primary" onclick="openAdsPromoDialog()">
+                            📣 Send ads
+                        </button>
                         <button class="btn btn-danger" onclick="deleteSelectedClients()">
                             🗑️ Delete Selected
                         </button>
@@ -1000,18 +1003,17 @@
                                 <th>Payment Due</th>
                                 <th>Location</th>
                                 <th>System Type</th>
-                                <th>HA URL</th>
-                                <th>HA Token</th>
+                                <th>Brain URL</th>
+                                <th>Brain Token</th>
                                 <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
                                 <th>Firebase Actions</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for c in clients %}
-                            <tr>
+                            <tr id="client-row-{{ c._id }}">
                                 <td>
                                     <input type="checkbox" class="client-checkbox" value="{{ c._id }}" onchange="updateSelectedCount()">
                                 </td>
@@ -1117,7 +1119,7 @@
                                             {% endif %}
                                             <a href="#" onclick="event.preventDefault(); handleFirebaseAction('reset_password', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item">🔑 Reset Password</a>
                                             <a href="#" onclick="event.preventDefault(); handleFirebaseAction('reset_device', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item">📱 Reset Device</a>
-                                            <a href="#" onclick="event.preventDefault(); handleFirebaseAction('delete', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item danger">🗑️ Delete Firebase Account</a>
+                                            <a href="#" onclick="event.preventDefault(); handleFirebaseAction('delete', '{{ c._id }}', '{{ c.full_name }}', '{{ c.firebase_uid }}', 'firebase-dropdown-{{ c._id }}')" class="firebase-dropdown-item danger">🗑️ Delete Firebase &amp; remove client</a>
                                         </div>
                                     </div>
                                     {% else %}
@@ -1129,15 +1131,6 @@
                                         <span style="color: #999; font-size: 14px;">No email</span>
                                         {% endif %}
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <div class="action-buttons-cell">
-                                        <form method="POST" action="/delete_client/{{ c._id }}" class="form-inline" onsubmit="return confirm('Delete this client?');">
-                                            <button type="submit" class="btn btn-sm btn-secondary">
-                                                🗑️ Delete Client
-                                            </button>
-                                        </form>
-                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -1420,12 +1413,20 @@
         window.onclick = function(event) {
             const paymentModal = document.getElementById('paymentModal');
             const calendarModal = document.getElementById('calendarModal');
-            
+            const notificationModal = document.getElementById('notificationModal');
+            const adsPromoModal = document.getElementById('adsPromoModal');
+
             if (event.target == paymentModal) {
                 closeModal();
             }
             if (event.target == calendarModal) {
                 closeCalendarModal();
+            }
+            if (event.target == notificationModal) {
+                closeNotificationDialog();
+            }
+            if (event.target == adsPromoModal) {
+                closeAdsPromoDialog();
             }
         }
 
@@ -1451,9 +1452,27 @@
             
             const allCheckboxes = document.querySelectorAll('.client-checkbox');
             const selectAllCheckbox = document.getElementById('selectAll');
-            if (allCheckboxes.length > 0) {
-                selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+            if (selectAllCheckbox) {
+                if (allCheckboxes.length > 0) {
+                    selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+                } else {
+                    selectAllCheckbox.checked = false;
+                }
             }
+        }
+
+        function removeClientRowFromTable(clientId) {
+            const row = document.getElementById('client-row-' + clientId);
+            if (row) {
+                row.remove();
+            }
+            const sub = document.getElementById('clientsTotalSubtitle');
+            const tbody = document.querySelector('#clients table tbody');
+            if (sub && tbody) {
+                const n = tbody.querySelectorAll('tr').length;
+                sub.textContent = 'Total: ' + n + ' clients';
+            }
+            updateSelectedCount();
         }
 
         function deleteSelectedClients() {
@@ -1620,7 +1639,7 @@
             // Close dropdown
             document.getElementById(`firebase-dropdown-${clientId}`).classList.remove('show');
 
-            if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+            if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName} and remove this client from your list.\n\nThis cannot be undone. Continue?`)) {
                 return;
             }
             
@@ -1633,8 +1652,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
-                    location.reload();
+                    removeClientRowFromTable(clientId);
+                    showToast(data.message || 'Client removed.');
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -1905,7 +1924,7 @@
                     alert('Error resetting device');
                 });
             } else if (action === 'delete') {
-                if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName}!\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+                if (!confirm(`⚠️ WARNING: This will permanently delete the Firebase account for ${clientName} and remove this client from your list.\n\nThis cannot be undone. Continue?`)) {
                     return;
                 }
                 
@@ -1918,8 +1937,8 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showToast('Firebase account deleted successfully!');
-                        location.reload();
+                        removeClientRowFromTable(clientId);
+                        showToast(data.message || 'Client removed.');
                     } else {
                         alert('Error: ' + data.error);
                     }
@@ -2655,12 +2674,63 @@
             });
         }
 
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const notificationModal = document.getElementById('notificationModal');
-            if (event.target == notificationModal) {
-                closeNotificationDialog();
+        function openAdsPromoDialog() {
+            document.getElementById('adsPromoTitle').value = 'Promotion';
+            document.getElementById('adsPromoBody').value = '';
+            document.getElementById('adsPromoModal').style.display = 'block';
+        }
+
+        function closeAdsPromoDialog() {
+            document.getElementById('adsPromoModal').style.display = 'none';
+            document.getElementById('adsPromoBody').value = '';
+            document.getElementById('adsPromoTitle').value = 'Promotion';
+        }
+
+        function sendAdsToAllClients() {
+            const title = document.getElementById('adsPromoTitle').value.trim();
+            const body = document.getElementById('adsPromoBody').value.trim();
+
+            if (!body) {
+                alert('Please enter the ad / promotion message body.');
+                return;
             }
+
+            if (!confirm('Send this promotion to every client that has an FCM token?')) {
+                return;
+            }
+
+            const sendButton = document.getElementById('sendAdsPromoBtn');
+            const originalText = sendButton.innerHTML;
+            sendButton.innerHTML = '⏳ Sending...';
+            sendButton.disabled = true;
+
+            fetch('/send_promo_to_all_clients', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: title || 'Promotion',
+                    body: body,
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message || ('Sent to ' + data.sent + ' device(s).'));
+                    closeAdsPromoDialog();
+                } else {
+                    alert('❌ ' + (data.error || 'Failed to send'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error sending ads: ' + error.message);
+            })
+            .finally(() => {
+                sendButton.innerHTML = originalText;
+                sendButton.disabled = false;
+            });
         }
     </script>
 
@@ -2691,6 +2761,33 @@
             <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 15px; border-top: 1px solid #ddd;">
                 <button class="btn btn-secondary" onclick="closeNotificationDialog()">Cancel</button>
                 <button class="btn btn-primary" id="sendNotificationBtn" onclick="sendNotificationToClient()">📤 Send Notification</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Send ads (promo) to all clients with FCM -->
+    <div id="adsPromoModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h2>📣 Send ads</h2>
+                <span class="close" onclick="closeAdsPromoDialog()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="margin-top: 0; color: #555; font-size: 14px;">
+                    Sends one push notification to every registered client that has an FCM token (same list as the table; clients without the app token are skipped).
+                </p>
+                <div style="margin-bottom: 15px;">
+                    <label for="adsPromoTitle" style="display: block; margin-bottom: 5px; font-weight: 600;">Notification title</label>
+                    <input type="text" id="adsPromoTitle" value="Promotion" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="adsPromoBody" style="display: block; margin-bottom: 5px; font-weight: 600;">Ad / promotion body</label>
+                    <textarea id="adsPromoBody" rows="5" placeholder="Enter your promotion text..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 15px; border-top: 1px solid #ddd;">
+                <button type="button" class="btn btn-secondary" onclick="closeAdsPromoDialog()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="sendAdsPromoBtn" onclick="sendAdsToAllClients()">📣 Send to all clients</button>
             </div>
         </div>
     </div>

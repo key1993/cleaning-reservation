@@ -999,6 +999,61 @@ def send_notification_to_client():
             "error": f"Internal server error: {str(e)}"
         }), 500
 
+
+@routes.route("/send_promo_to_all_clients", methods=["POST"])
+def send_promo_to_all_clients():
+    """Send one FCM notification (title + body) to every client document that has an FCM token."""
+    try:
+        data = request.json or {}
+        title = (data.get("title") or "").strip() or "Promotion"
+        body = (data.get("body") or "").strip()
+        if not body:
+            return jsonify({"success": False, "error": "Body (ad message) is required"}), 400
+
+        token_query = {"fcm_token": {"$exists": True, "$nin": [None, ""]}}
+        total_clients = clients_collection.count_documents({})
+        eligible = clients_collection.count_documents(token_query)
+        clients = list(clients_collection.find(token_query, {"fcm_token": 1}))
+
+        sent = 0
+        failed = 0
+        promo_data = {"type": "promo", "source": "admin_panel"}
+
+        for doc in clients:
+            token = doc.get("fcm_token")
+            if not token:
+                continue
+            result = send_fcm_notification(
+                fcm_token=token,
+                title=title,
+                body=body,
+                data=promo_data,
+            )
+            if result.get("success"):
+                sent += 1
+            else:
+                failed += 1
+
+        skipped_no_token = max(0, total_clients - eligible)
+
+        return jsonify({
+            "success": True,
+            "message": f"Sent to {sent} device(s)."
+                + (f" {failed} failed." if failed else "")
+                + (f" {skipped_no_token} client(s) have no FCM token." if skipped_no_token else ""),
+            "sent": sent,
+            "failed": failed,
+            "skipped_no_token": skipped_no_token,
+            "eligible": eligible,
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error in send_promo_to_all_clients: {e}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
+        return jsonify({"success": False, "error": f"Internal server error: {str(e)}"}), 500
+
+
 @routes.route("/api/update_fcm_token", methods=["POST"])
 def update_fcm_token():
     """
@@ -1837,12 +1892,12 @@ def delete_client_firebase_account(client_id):
         
         ok, err = delete_firebase_user(firebase_uid)
         if ok:
-            # Remove Firebase UID from client record
-            clients_collection.update_one(
-                {"_id": ObjectId(client_id)},
-                {"$unset": {"firebase_uid": "", "account_disabled": "", "account_disabled_date": ""}}
-            )
-            return jsonify({"success": True, "message": "Firebase account deleted successfully"}), 200
+            clients_collection.delete_one({"_id": ObjectId(client_id)})
+            return jsonify({
+                "success": True,
+                "message": "Firebase account removed and client deleted from your list.",
+                "removed_client_id": client_id,
+            }), 200
         return jsonify({"success": False, "error": err or "Failed to delete Firebase account"}), 500
             
     except Exception as e:
