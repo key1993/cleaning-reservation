@@ -674,14 +674,39 @@
         .health-check-cell {
             text-align: center;
             vertical-align: middle;
-            min-width: 72px;
+            min-width: 120px;
         }
 
         .health-dots {
             display: flex;
-            gap: 8px;
-            align-items: center;
+            gap: 12px;
+            align-items: flex-start;
             justify-content: center;
+        }
+
+        .health-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 34px;
+            max-width: 56px;
+        }
+
+        .health-indicator__icon {
+            font-size: 17px;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .health-indicator__label {
+            font-size: 9px;
+            font-weight: 600;
+            color: #64748b;
+            letter-spacing: 0.02em;
+            line-height: 1.15;
+            text-align: center;
+            text-transform: uppercase;
         }
 
         .health-dot {
@@ -1059,10 +1084,22 @@
                                 <td>{{ c.phone }}</td>
                                 <td>{{ c.email or 'N/A' }}</td>
                                 <td class="health-check-cell">
-                                    <div class="health-dots" title="Brain reachable · Grid · Solar (green=OK, red=fault, gray=no data)">
-                                        <span class="health-dot {% if c.get('health_pi_ok') == True %}health-dot--ok{% elif c.get('health_pi_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Brain (HA) reachable"></span>
-                                        <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Grid (input_boolean.grid_check: off=running)"></span>
-                                        <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}" title="Solar (input_boolean.solar_check: off=running)"></span>
+                                    <div class="health-dots" title="Green=OK · Red=fault · Gray=no data">
+                                        <div class="health-indicator" title="Brain: Home Assistant reachable (GET /api/config OK)">
+                                            <span class="health-dot {% if c.get('health_pi_ok') == True %}health-dot--ok{% elif c.get('health_pi_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
+                                            <span class="health-indicator__icon" aria-hidden="true">🏠</span>
+                                            <span class="health-indicator__label">Brain</span>
+                                        </div>
+                                        <div class="health-indicator" title="Grid: input_boolean.grid_check — ON=offline, OFF=running">
+                                            <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
+                                            <span class="health-indicator__icon" aria-hidden="true">⚡</span>
+                                            <span class="health-indicator__label">Grid</span>
+                                        </div>
+                                        <div class="health-indicator" title="Solar: input_boolean.solar_check — ON=offline, OFF=running">
+                                            <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
+                                            <span class="health-indicator__icon" aria-hidden="true">☀️</span>
+                                            <span class="health-indicator__label">Solar</span>
+                                        </div>
                                     </div>
                                 </td>
                                 <td>
