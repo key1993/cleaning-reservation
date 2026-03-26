@@ -3,6 +3,7 @@ Poll each client's Home Assistant (Brain URL + token) for connectivity and entit
 Grid/solar: input_boolean ON = offline (bad LED), OFF = running (good LED).
 """
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
@@ -13,6 +14,74 @@ DEFAULT_TIMEOUT = float(os.environ.get("HA_HEALTH_TIMEOUT", "8"))
 VERIFY_SSL = os.environ.get("HA_HEALTH_VERIFY_SSL", "true").lower() in ("1", "true", "yes")
 GRID_ENTITY = os.environ.get("HA_GRID_ENTITY", "input_boolean.grid_check")
 SOLAR_ENTITY = os.environ.get("HA_SOLAR_ENTITY", "input_boolean.solar_check")
+HEALTH_ALERTS_WHATSAPP = os.environ.get("HEALTH_ALERTS_WHATSAPP", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+_whatsapp_lock = threading.Lock()
+
+
+def _send_whatsapp_safe(message: str) -> None:
+    if not HEALTH_ALERTS_WHATSAPP or not message.strip():
+        return
+    try:
+        with _whatsapp_lock:
+            from routes import send_whatsapp_message
+
+            send_whatsapp_message(message)
+    except Exception as e:
+        print(f"⚠️ Health WhatsApp notify failed: {e}")
+
+
+def _notify_health_transitions(
+    full_name: str,
+    email: str,
+    phone: str,
+    old_pi: Optional[bool],
+    new_pi: Optional[bool],
+    old_grid: Optional[bool],
+    new_grid: Optional[bool],
+    old_solar: Optional[bool],
+    new_solar: Optional[bool],
+) -> None:
+    """
+    WhatsApp when a light goes red (fault) or returns green (recovered).
+    Fault: new is False and previous was not False (True or None).
+    Recovery: new is True and previous was strictly False.
+    """
+    display_name = (full_name or "Unknown").strip() or "Unknown"
+    email_s = (email or "N/A").strip() or "N/A"
+    phone_s = (phone or "N/A").strip() or "N/A"
+
+    checks: Tuple[Tuple[str, str, Optional[bool], Optional[bool]], ...] = (
+        ("Brain (HA)", "🏠", old_pi, new_pi),
+        ("Grid", "⚡", old_grid, new_grid),
+        ("Solar", "☀️", old_solar, new_solar),
+    )
+
+    for label, icon, old_v, new_v in checks:
+        if new_v is False and old_v is not False:
+            msg = (
+                f"⚠️ *Client health — fault*\n\n"
+                f"👤 *{display_name}*\n"
+                f"📧 {email_s}\n"
+                f"📱 {phone_s}\n\n"
+                f"{icon} *{label}* is OFF/down (red on dashboard).\n"
+                f"Check Home Assistant / site status."
+            )
+            _send_whatsapp_safe(msg)
+        elif new_v is True and old_v is False:
+            msg = (
+                f"✅ *Client health — recovered*\n\n"
+                f"👤 *{display_name}*\n"
+                f"📧 {email_s}\n"
+                f"📱 {phone_s}\n\n"
+                f"{icon} *{label}* is OK again (green on dashboard)."
+            )
+            _send_whatsapp_safe(msg)
 
 
 def _normalize_base(url: str) -> str:
@@ -126,6 +195,13 @@ def _refresh_one_client(clients_collection: Any, client: Dict[str, Any]) -> None
     ha_token = client.get("ha_token") or ""
     cid = client["_id"]
 
+    old_pi = client.get("health_pi_ok")
+    old_grid = client.get("health_inverter_ok")
+    old_solar = client.get("health_solar_ok")
+    full_name = client.get("full_name") or ""
+    email = client.get("email") or ""
+    phone = client.get("phone") or ""
+
     if not _normalize_base(ha_url) or not (ha_token or "").strip():
         clients_collection.update_one(
             {"_id": cid},
@@ -142,11 +218,36 @@ def _refresh_one_client(clients_collection: Any, client: Dict[str, Any]) -> None
 
     pi_ok, grid_ok, solar_ok = poll_client_health(ha_url, ha_token)
     _apply_health_update(clients_collection, cid, pi_ok, grid_ok, solar_ok)
+    _notify_health_transitions(
+        full_name,
+        email,
+        phone,
+        old_pi,
+        pi_ok,
+        old_grid,
+        grid_ok,
+        old_solar,
+        solar_ok,
+    )
 
 
 def refresh_all_clients_health(clients_collection: Any, max_workers: int = 12) -> None:
     """Poll HA for every client document (parallel). Safe to call from scheduler or admin load."""
-    clients = list(clients_collection.find({}, {"ha_url": 1, "ha_token": 1}))
+    clients = list(
+        clients_collection.find(
+            {},
+            {
+                "ha_url": 1,
+                "ha_token": 1,
+                "full_name": 1,
+                "email": 1,
+                "phone": 1,
+                "health_pi_ok": 1,
+                "health_inverter_ok": 1,
+                "health_solar_ok": 1,
+            },
+        )
+    )
     if not clients:
         return
     workers = min(max_workers, max(1, len(clients)))
