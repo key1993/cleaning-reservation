@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, redirect, render_template, session
+from flask import Blueprint, request, jsonify, redirect, render_template, session, abort
 from db import reservations_collection, clients_collection, disabled_slots_collection, cleaning_crew_collection, db
 from models import validate_reservation
 from bson.objectid import ObjectId
@@ -2095,6 +2095,39 @@ def get_widget_status():
             "external widget status": status_text
         }), 200
         
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@routes.route("/api/cron/client-health", methods=["GET", "POST"])
+def cron_client_health_poll():
+    """
+    Run the same health poll as the background scheduler (Brain / Grid / Solar + WhatsApp).
+    No admin login. Use so alerts work when the app sleeps (e.g. Render free) or if APScheduler
+    is not running on this worker.
+
+    Set env HEALTH_CRON_SECRET to a long random string, then call:
+      GET/POST .../api/cron/client-health?key=YOUR_SECRET
+    or header: X-Cron-Secret: YOUR_SECRET
+
+    Point UptimeRobot / cron-job.org at this URL every 5–10 minutes.
+    """
+    secret = (os.environ.get("HEALTH_CRON_SECRET") or "").strip()
+    if not secret:
+        abort(404)
+    supplied = (
+        request.headers.get("X-Cron-Secret")
+        or request.args.get("key")
+        or (request.get_json(silent=True) or {}).get("key")
+        or ""
+    ).strip()
+    if supplied != secret:
+        abort(404)
+    try:
+        from ha_client_health import refresh_all_clients_health
+
+        refresh_all_clients_health(clients_collection)
+        return jsonify({"success": True, "message": "Health poll completed"}), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
