@@ -1,5 +1,5 @@
 from flask import Flask
-from routes import routes, process_payment_reminders
+from routes import routes, process_payment_reminders, _canonical_preferred_language
 from admin import admin
 from auth import auth
 import os
@@ -14,6 +14,13 @@ import atexit
 import sys
 
 app = Flask(__name__)
+
+
+@app.template_filter("preferred_language_display")
+def preferred_language_display_filter(value):
+    c = _canonical_preferred_language(value)
+    return c if c else "N/A"
+
 
 _scheduler_lock_fp = None
 

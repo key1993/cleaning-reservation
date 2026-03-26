@@ -27,6 +27,37 @@ routes = Blueprint("routes", __name__)
 WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
 CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
 
+# Stored values are full names "Arabic" / "English" (admin + reports); aliases normalize from the app.
+_PREFERRED_LANGUAGE_ALIASES = {
+    "ar": "Arabic",
+    "arabic": "Arabic",
+    "en": "English",
+    "english": "English",
+    "العربية": "Arabic",
+    "عربي": "Arabic",
+}
+
+def _canonical_preferred_language(raw):
+    """Return full language name: Arabic or English. Unknown non-empty strings kept as-is (trimmed)."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    if s in _PREFERRED_LANGUAGE_ALIASES:
+        return _PREFERRED_LANGUAGE_ALIASES[s]
+    low = s.lower()
+    if low in _PREFERRED_LANGUAGE_ALIASES:
+        return _PREFERRED_LANGUAGE_ALIASES[low]
+    return s
+
+def _preferred_language_from_request(data):
+    """preferred_language or preferredLanguage from Flutter; normalized to full names."""
+    if not data:
+        return None
+    v = data.get("preferred_language") or data.get("preferredLanguage")
+    return _canonical_preferred_language(v)
+
 def send_whatsapp_message(message):
     encoded = urllib.parse.quote(message)
     url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_PHONE}&text={encoded}&apikey={CALLMEBOT_API_KEY}"
@@ -1172,6 +1203,7 @@ def update_fcm_token():
         fcm_token = data.get("fcm_token")
         user_email = data.get("user_email")
         user_id = data.get("user_id")
+        preferred_language = _preferred_language_from_request(data)
         
         if not fcm_token:
             return jsonify({
@@ -1223,7 +1255,10 @@ def update_fcm_token():
                 # One-time pass after device reset: allow this login once, then clear the pass (no time limit)
                 has_reset_pass = client_doc.get("device_reset_allow_next_login")
                 now = datetime.utcnow()
-                update_op = {"$set": {"fcm_token": fcm_token, "fcm_token_updated_at": now}}
+                client_set = {"fcm_token": fcm_token, "fcm_token_updated_at": now}
+                if preferred_language:
+                    client_set["preferred_language"] = preferred_language
+                update_op = {"$set": client_set}
                 if has_reset_pass:
                     update_op["$unset"] = {"device_reset_allow_next_login": "", "device_reset_expires_at": ""}
                 clients_collection.update_one(
@@ -1245,15 +1280,16 @@ def update_fcm_token():
 
                 if existing_client:
                     # Link this email + device to the existing client without clearing other fields
+                    link_set = {
+                        "email": user_email,
+                        "fcm_token": fcm_token,
+                        "fcm_token_updated_at": now,
+                    }
+                    if preferred_language:
+                        link_set["preferred_language"] = preferred_language
                     clients_collection.update_one(
                         {"_id": existing_client["_id"]},
-                        {
-                            "$set": {
-                                "email": user_email,
-                                "fcm_token": fcm_token,
-                                "fcm_token_updated_at": now,
-                            }
-                        },
+                        {"$set": link_set},
                     )
                     updated = True
                 else:
@@ -1271,6 +1307,8 @@ def update_fcm_token():
                         "fcm_token": fcm_token,
                         "fcm_token_updated_at": now,
                     }
+                    if preferred_language:
+                        new_client["preferred_language"] = preferred_language
                     clients_collection.insert_one(new_client)
                     updated = True
         
@@ -1636,6 +1674,13 @@ def register_client():
         data["firebase_uid"] = firebase_user.uid
     else:
         data["firebase_uid"] = None
+
+    pl = _preferred_language_from_request(data)
+    if pl:
+        data["preferred_language"] = pl
+    else:
+        data.pop("preferred_language", None)
+    data.pop("preferredLanguage", None)
 
     clients_collection.insert_one(data)
 
