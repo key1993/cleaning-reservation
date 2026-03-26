@@ -292,12 +292,37 @@ def update_crew_price():
             {"_id": reservation["_id"]},
             {"$set": {"crew_price": crew_price, "crew_price_status": "Yes", "crew_price_updated_at": datetime.utcnow()}}
         )
-        
-        return jsonify({
+
+        res_id_str = str(reservation["_id"])
+        fcm_token = get_fcm_token_for_reservation(reservation)
+        notification_sent = False
+        notification_error = None
+        if fcm_token:
+            n_result = send_fcm_notification(
+                fcm_token=fcm_token,
+                title="Price set",
+                body="Your cleaning service price has been set. Please open the app to view it.",
+                data={
+                    "type": "crew_price_set",
+                    "reservation_id": res_id_str,
+                },
+            )
+            notification_sent = bool(n_result.get("success"))
+            if not notification_sent:
+                notification_error = n_result.get("error", "Failed to send notification")
+        else:
+            notification_error = "No FCM token found for this user"
+
+        response_body = {
             "success": True,
             "message": "Crew price updated successfully",
-            "reservation_id": str(reservation["_id"])
-        }), 200
+            "reservation_id": res_id_str,
+            "notification_sent": notification_sent,
+        }
+        if notification_error:
+            response_body["notification_error"] = notification_error
+
+        return jsonify(response_body), 200
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -765,6 +790,71 @@ def coming_over():
             "error": f"Internal server error: {str(e)}"
         }), 500
 
+
+def get_fcm_token_for_reservation(reservation, user_email=None, user_id_override=None):
+    """
+    Resolve an FCM device token for the user linked to a reservation document.
+    Used by /api/send_notification and /api/crew_price (price-set push).
+    """
+    if not reservation:
+        return None
+
+    fcm_token = reservation.get("fcm_token")
+    if fcm_token:
+        return fcm_token
+
+    user_identifier = user_email or user_id_override or reservation.get("user_id") or reservation.get("email")
+
+    if user_identifier:
+        if user_email or reservation.get("email"):
+            email_to_search = user_email or reservation.get("email")
+            user_doc = users_collection.find_one({"email": email_to_search})
+            if user_doc and user_doc.get("fcm_token"):
+                return user_doc.get("fcm_token")
+
+        if user_id_override:
+            try:
+                user_doc = users_collection.find_one({"_id": ObjectId(user_id_override)})
+                if user_doc and user_doc.get("fcm_token"):
+                    return user_doc.get("fcm_token")
+            except Exception:
+                pass
+
+        user_doc = users_collection.find_one({"user_id": user_identifier})
+        if user_doc and user_doc.get("fcm_token"):
+            return user_doc.get("fcm_token")
+
+    if user_email or reservation.get("email"):
+        email_to_search = user_email or reservation.get("email")
+        client_doc = clients_collection.find_one({"email": email_to_search})
+        if client_doc and client_doc.get("fcm_token"):
+            return client_doc.get("fcm_token")
+
+    if reservation.get("phone"):
+        client_doc = clients_collection.find_one({"phone": reservation.get("phone")})
+        if client_doc and client_doc.get("fcm_token"):
+            return client_doc.get("fcm_token")
+
+    if user_identifier and user_identifier != "Guest":
+        client_doc = clients_collection.find_one({"email": user_identifier})
+        if client_doc and client_doc.get("fcm_token"):
+            return client_doc.get("fcm_token")
+        client_doc = clients_collection.find_one({"phone": user_identifier})
+        if client_doc and client_doc.get("fcm_token"):
+            return client_doc.get("fcm_token")
+        client_doc = clients_collection.find_one({"firebase_uid": user_identifier})
+        if client_doc and client_doc.get("fcm_token"):
+            return client_doc.get("fcm_token")
+        try:
+            client_doc = clients_collection.find_one({"_id": ObjectId(user_identifier)})
+            if client_doc and client_doc.get("fcm_token"):
+                return client_doc.get("fcm_token")
+        except Exception:
+            pass
+
+    return None
+
+
 @routes.route("/api/send_notification", methods=["POST"])
 def send_notification():
     """
@@ -804,55 +894,9 @@ def send_notification():
                 "error": "Reservation not found"
             }), 404
         
-        # Step 3: Get FCM token
-        # Try multiple methods to find FCM token
-        fcm_token = None
-        
-        # Option A: FCM token stored in reservation document
-        fcm_token = reservation.get("fcm_token")
-        
-        # Option B: FCM token stored in user document (users collection)
-        if not fcm_token:
-            user_identifier = user_email or user_id or reservation.get("user_id") or reservation.get("email")
-            if user_identifier:
-                # Try to find user by email
-                if user_email or reservation.get("email"):
-                    email_to_search = user_email or reservation.get("email")
-                    user_doc = users_collection.find_one({"email": email_to_search})
-                    if user_doc:
-                        fcm_token = user_doc.get("fcm_token")
-                
-                # Try to find user by user_id
-                if not fcm_token and user_id:
-                    try:
-                        user_doc = users_collection.find_one({"_id": ObjectId(user_id)})
-                        if user_doc:
-                            fcm_token = user_doc.get("fcm_token")
-                    except:
-                        pass
-                
-                # Try to find user by user_id string field
-                if not fcm_token:
-                    user_doc = users_collection.find_one({"user_id": user_identifier})
-                    if user_doc:
-                        fcm_token = user_doc.get("fcm_token")
-        
-        # Option C: FCM token stored in clients collection
-        if not fcm_token:
-            user_identifier = user_email or user_id or reservation.get("user_id") or reservation.get("email")
-            if user_identifier:
-                # Try by email
-                if user_email or reservation.get("email"):
-                    email_to_search = user_email or reservation.get("email")
-                    client_doc = clients_collection.find_one({"email": email_to_search})
-                    if client_doc:
-                        fcm_token = client_doc.get("fcm_token")
-                
-                # Try by phone if available
-                if not fcm_token and reservation.get("phone"):
-                    client_doc = clients_collection.find_one({"phone": reservation.get("phone")})
-                    if client_doc:
-                        fcm_token = client_doc.get("fcm_token")
+        fcm_token = get_fcm_token_for_reservation(
+            reservation, user_email=user_email, user_id_override=user_id
+        )
         
         if not fcm_token:
             return jsonify({
