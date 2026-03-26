@@ -294,24 +294,7 @@ def update_crew_price():
         )
 
         res_id_str = str(reservation["_id"])
-        fcm_token = get_fcm_token_for_reservation(reservation)
-        notification_sent = False
-        notification_error = None
-        if fcm_token:
-            n_result = send_fcm_notification(
-                fcm_token=fcm_token,
-                title="Price set",
-                body="Your cleaning service price has been set. Please open the app to view it.",
-                data={
-                    "type": "crew_price_set",
-                    "reservation_id": res_id_str,
-                },
-            )
-            notification_sent = bool(n_result.get("success"))
-            if not notification_sent:
-                notification_error = n_result.get("error", "Failed to send notification")
-        else:
-            notification_error = "No FCM token found for this user"
+        notification_sent, notification_error = _notify_price_set_for_reservation(reservation)
 
         response_body = {
             "success": True,
@@ -619,13 +602,54 @@ def delete_reservations_bulk():
 
 @routes.route('/update_cost', methods=['POST'])
 def update_cost():
-    reservation_id = request.form['reservation_id']
-    cost = float(request.form['cost'])
-    reservations_collection.update_one(
-        {'_id': ObjectId(reservation_id)},
-        {'$set': {'cost': cost}}
-    )
-    return redirect('/admin')
+    """Set reservation cost (web admin form or Flutter JSON). Sends same FCM as /api/crew_price."""
+    try:
+        if request.is_json and request.json:
+            reservation_id = request.json.get("reservation_id")
+            cost_raw = request.json.get("cost")
+        else:
+            reservation_id = request.form.get("reservation_id")
+            cost_raw = request.form.get("cost")
+
+        if reservation_id is None or cost_raw is None or cost_raw == "":
+            if request.is_json:
+                return jsonify({"success": False, "error": "reservation_id and cost are required"}), 400
+            return redirect("/admin")
+
+        cost = float(cost_raw)
+    except (TypeError, ValueError):
+        if request.is_json:
+            return jsonify({"success": False, "error": "Invalid cost value"}), 400
+        return redirect("/admin")
+
+    try:
+        oid = ObjectId(reservation_id)
+    except Exception:
+        if request.is_json:
+            return jsonify({"success": False, "error": "Invalid reservation_id"}), 400
+        return redirect("/admin")
+
+    reservation = reservations_collection.find_one({"_id": oid})
+    if not reservation:
+        if request.is_json:
+            return jsonify({"success": False, "error": "Reservation not found"}), 404
+        return redirect("/admin")
+
+    reservations_collection.update_one({"_id": oid}, {"$set": {"cost": cost}})
+
+    notification_sent, notification_error = _notify_price_set_for_reservation(reservation)
+
+    if request.is_json:
+        body = {
+            "success": True,
+            "message": "Cost updated successfully",
+            "notification_sent": notification_sent,
+        }
+        if notification_error:
+            body["notification_error"] = notification_error
+        return jsonify(body), 200
+
+    return redirect("/admin")
 
 @routes.route('/cost/')
 @routes.route('/cost')
@@ -805,6 +829,15 @@ def get_fcm_token_for_reservation(reservation, user_email=None, user_id_override
 
     user_identifier = user_email or user_id_override or reservation.get("user_id") or reservation.get("email")
 
+    # Login flow sets reservation.user_id to MongoDB users._id; FCM is often stored on that user doc
+    if user_identifier and user_identifier != "Guest":
+        try:
+            user_by_id = users_collection.find_one({"_id": ObjectId(user_identifier)})
+            if user_by_id and user_by_id.get("fcm_token"):
+                return user_by_id.get("fcm_token")
+        except Exception:
+            pass
+
     if user_identifier:
         if user_email or reservation.get("email"):
             email_to_search = user_email or reservation.get("email")
@@ -853,6 +886,29 @@ def get_fcm_token_for_reservation(reservation, user_email=None, user_id_override
             pass
 
     return None
+
+
+def _notify_price_set_for_reservation(reservation):
+    """
+    FCM when admin sets a price the client should see (crew_price or cost).
+    Returns (notification_sent: bool, notification_error: str | None).
+    """
+    res_id_str = str(reservation["_id"])
+    fcm_token = get_fcm_token_for_reservation(reservation)
+    if not fcm_token:
+        return False, "No FCM token found for this user"
+    n_result = send_fcm_notification(
+        fcm_token=fcm_token,
+        title="Price set",
+        body="Your cleaning service price has been set. Please open the app to view it.",
+        data={
+            "type": "crew_price_set",
+            "reservation_id": res_id_str,
+        },
+    )
+    if n_result.get("success"):
+        return True, None
+    return False, n_result.get("error", "Failed to send notification")
 
 
 @routes.route("/api/send_notification", methods=["POST"])
