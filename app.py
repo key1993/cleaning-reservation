@@ -56,7 +56,7 @@ def _try_acquire_scheduler_master_lock():
         return True
 
 # Connect to MongoDB
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://amerkiwan7723:oPQwW3nr3url61yM@cluster0.6jzip7b.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://saraalthaher7723_db_user:5Errd8L7V2mawi9O@cluster0.7faafep.mongodb.net/?appName=Cluster0")
 client = MongoClient(MONGO_URI)
 db = client.get_database("cleaning_reservation")
 
