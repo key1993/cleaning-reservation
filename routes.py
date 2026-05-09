@@ -71,6 +71,25 @@ def _account_number_from_request(data):
     s = str(v).strip()
     return s if s else None
 
+
+def _account_uid_from_request(data):
+    """
+    Account UID from app payload.
+    Supports common keys and maps to our canonical client identity (firebase_uid).
+    """
+    if not data:
+        return None
+    v = (
+        data.get("account_uid")
+        or data.get("accountUid")
+        or data.get("firebase_uid")
+        or data.get("firebaseUid")
+    )
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s if s else None
+
 def send_whatsapp_message(message):
     encoded = urllib.parse.quote(message)
     url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_PHONE}&text={encoded}&apikey={CALLMEBOT_API_KEY}"
@@ -1218,6 +1237,7 @@ def update_fcm_token():
         user_id = data.get("user_id")
         preferred_language = _preferred_language_from_request(data)
         account_number = _account_number_from_request(data)
+        account_uid = _account_uid_from_request(data)
         
         if not fcm_token:
             return jsonify({
@@ -1262,7 +1282,28 @@ def update_fcm_token():
                 if result.matched_count > 0:
                     updated = True
         
-        # Also try to update in clients collection (or create/link client if new Firebase user)
+        # Also try to update in clients collection (or create/link client if new Firebase user).
+        # Priority is account UID (firebase_uid) to prevent duplicate clients for same account.
+        if account_uid:
+            existing_by_uid = clients_collection.find_one({"firebase_uid": account_uid})
+            if existing_by_uid:
+                now = datetime.utcnow()
+                uid_set = {
+                    "fcm_token": fcm_token,
+                    "fcm_token_updated_at": now,
+                }
+                if user_email:
+                    uid_set["email"] = user_email
+                if preferred_language:
+                    uid_set["preferred_language"] = preferred_language
+                if account_number:
+                    uid_set["account_number"] = account_number
+                clients_collection.update_one(
+                    {"_id": existing_by_uid["_id"]},
+                    {"$set": uid_set},
+                )
+                updated = True
+
         if user_email:
             client_doc = clients_collection.find_one({"email": user_email})
             if client_doc:
@@ -1274,6 +1315,8 @@ def update_fcm_token():
                     client_set["preferred_language"] = preferred_language
                 if account_number:
                     client_set["account_number"] = account_number
+                if account_uid and not client_doc.get("firebase_uid"):
+                    client_set["firebase_uid"] = account_uid
                 update_op = {"$set": client_set}
                 if has_reset_pass:
                     update_op["$unset"] = {"device_reset_allow_next_login": "", "device_reset_expires_at": ""}
@@ -1287,7 +1330,7 @@ def update_fcm_token():
                 # New Firebase user with no backend client using this email.
                 # First, try to find an existing client by firebase_uid so we don't lose its data.
                 firebase_user = get_firebase_user_by_email(user_email)
-                firebase_uid = firebase_user.uid if firebase_user else None
+                firebase_uid = account_uid or (firebase_user.uid if firebase_user else None)
                 now = datetime.utcnow()
                 if firebase_uid:
                     existing_client = clients_collection.find_one({"firebase_uid": firebase_uid})
@@ -1766,13 +1809,16 @@ def register_client():
     data["next_payment_date"] = next_payment_date.strftime("%Y-%m-%d")
     data["subscription_type"] = subscription_type
 
+    # Resolve account UID first (from app payload), then fallback to Firebase lookup by email.
+    incoming_account_uid = _account_uid_from_request(data)
+
     # Try to match email with Firebase user, but don't block registration if not found
     firebase_user = get_firebase_user_by_email(data["email"])
     if firebase_user:
         data["email"] = firebase_user.email
-        data["firebase_uid"] = firebase_user.uid
+        data["firebase_uid"] = incoming_account_uid or firebase_user.uid
     else:
-        data["firebase_uid"] = None
+        data["firebase_uid"] = incoming_account_uid or None
 
     pl = _preferred_language_from_request(data)
     if pl:
@@ -1780,6 +1826,26 @@ def register_client():
     else:
         data.pop("preferred_language", None)
     data.pop("preferredLanguage", None)
+
+    # Deduplicate by account UID: update existing client instead of inserting a new one.
+    # Keep the original signup_date from existing client.
+    uid_for_match = data.get("firebase_uid")
+    if uid_for_match:
+        existing_client = clients_collection.find_one({"firebase_uid": uid_for_match})
+        if existing_client:
+            update_fields = dict(data)
+            if existing_client.get("signup_date"):
+                update_fields["signup_date"] = existing_client.get("signup_date")
+            update_fields["updated_at"] = datetime.utcnow()
+            clients_collection.update_one(
+                {"_id": existing_client["_id"]},
+                {"$set": update_fields},
+            )
+            return jsonify({
+                "message": "Client already exists for this account UID; existing client updated",
+                "client_id": str(existing_client["_id"]),
+                "deduplicated": True,
+            }), 200
 
     clients_collection.insert_one(data)
 
