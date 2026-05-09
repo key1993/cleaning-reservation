@@ -1,6 +1,6 @@
 """
 Poll each client's Home Assistant (Brain URL + token) for connectivity and entity states.
-Grid/solar: input_boolean ON = offline (bad LED), OFF = running (good LED).
+Sungrow/SmartLife sensors are green when state is online/active/normal.
 """
 import os
 import threading
@@ -12,8 +12,9 @@ import requests
 
 DEFAULT_TIMEOUT = float(os.environ.get("HA_HEALTH_TIMEOUT", "8"))
 VERIFY_SSL = os.environ.get("HA_HEALTH_VERIFY_SSL", "true").lower() in ("1", "true", "yes")
-GRID_ENTITY = os.environ.get("HA_GRID_ENTITY", "input_boolean.grid_check")
-SOLAR_ENTITY = os.environ.get("HA_SOLAR_ENTITY", "input_boolean.solar_check")
+SG_PLANT_STATUS_ENTITY = os.environ.get("HA_SG_PLANT_STATUS_ENTITY", "sensor.sg_plant_status")
+SMARTLIFE_STATUS_ENTITY = os.environ.get("HA_SMARTLIFE_STATUS_ENTITY", "sensor.smartlife_device_status")
+HEALTHY_SENSOR_STATES = {"online", "active", "normal"}
 HEALTH_ALERTS_WHATSAPP = os.environ.get("HEALTH_ALERTS_WHATSAPP", "true").lower() in (
     "1",
     "true",
@@ -58,8 +59,8 @@ def _notify_health_transitions(
 
     checks: Tuple[Tuple[str, str, Optional[bool], Optional[bool]], ...] = (
         ("Brain (HA)", "🏠", old_pi, new_pi),
-        ("Grid", "⚡", old_grid, new_grid),
-        ("Solar", "☀️", old_solar, new_solar),
+        ("Sungrow plant", "⚡", old_grid, new_grid),
+        ("SmartLife device", "☀️", old_solar, new_solar),
     )
 
     for label, icon, old_v, new_v in checks:
@@ -100,13 +101,12 @@ def poll_client_health(
     ha_token: str,
     *,
     timeout: float = DEFAULT_TIMEOUT,
-) -> Tuple[Optional[bool], Optional[bool], Optional[bool]]:
+) -> Tuple[Optional[bool], bool, bool]:
     """
-    Returns (pi_ok, grid_ok, solar_ok).
+    Returns (pi_ok, sg_plant_ok, smartlife_ok).
     pi_ok: True if GET /api/config succeeds with this token (Brain reachable).
-    grid_ok / solar_ok: True when entity state is off (running); False when on (offline);
-    None if entity missing or error.
-    If Brain is unreachable, returns (False, None, None).
+    sg_plant_ok / smartlife_ok: True when entity state is online/active/normal; False otherwise.
+    If Brain is unreachable, returns (False, False, False).
     """
     base = _normalize_base(ha_url)
     token = (ha_token or "").strip()
@@ -131,9 +131,9 @@ def poll_client_health(
         pi_ok = False
 
     if not pi_ok:
-        return (False, None, None)
+        return (False, False, False)
 
-    def entity_running_ok(entity_id: str) -> Optional[bool]:
+    def entity_running_ok(entity_id: str) -> bool:
         try:
             r = requests.get(
                 f"{base}/api/states/{entity_id}",
@@ -142,19 +142,15 @@ def poll_client_health(
                 verify=VERIFY_SSL,
             )
             if r.status_code != 200:
-                return None
-            data = r.json()
-            state = (data.get("state") or "").lower()
-            if state == "on":
                 return False
-            if state == "off":
-                return True
-            return None
+            data = r.json()
+            state = str(data.get("state") or "").strip().lower()
+            return state in HEALTHY_SENSOR_STATES
         except (requests.RequestException, ValueError, TypeError):
-            return None
+            return False
 
-    grid_ok = entity_running_ok(GRID_ENTITY)
-    solar_ok = entity_running_ok(SOLAR_ENTITY)
+    grid_ok = entity_running_ok(SG_PLANT_STATUS_ENTITY)
+    solar_ok = entity_running_ok(SMARTLIFE_STATUS_ENTITY)
     return (pi_ok, grid_ok, solar_ok)
 
 

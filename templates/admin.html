@@ -1092,15 +1092,15 @@
                                             <span class="health-indicator__icon" aria-hidden="true">🏠</span>
                                             <span class="health-indicator__label">Brain</span>
                                         </div>
-                                        <div class="health-indicator" title="Grid: input_boolean.grid_check — ON=offline, OFF=running">
+                                        <div class="health-indicator" title="Sungrow: sensor.sg_plant_status (online/active/normal = green)">
                                             <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
                                             <span class="health-indicator__icon" aria-hidden="true">⚡</span>
-                                            <span class="health-indicator__label">Grid</span>
+                                            <span class="health-indicator__label">Sungrow</span>
                                         </div>
-                                        <div class="health-indicator" title="Solar: input_boolean.solar_check — ON=offline, OFF=running">
+                                        <div class="health-indicator" title="SmartLife: sensor.smartlife_device_status (online/active/normal = green)">
                                             <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
                                             <span class="health-indicator__icon" aria-hidden="true">☀️</span>
-                                            <span class="health-indicator__label">Solar</span>
+                                            <span class="health-indicator__label">SmartLife</span>
                                         </div>
                                     </div>
                                 </td>
