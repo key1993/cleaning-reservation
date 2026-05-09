@@ -58,6 +58,19 @@ def _preferred_language_from_request(data):
     v = data.get("preferred_language") or data.get("preferredLanguage")
     return _canonical_preferred_language(v)
 
+
+def _account_number_from_request(data):
+    """account_number or accountNumber from Flutter; normalized as trimmed string."""
+    if not data:
+        return None
+    v = data.get("account_number")
+    if v is None:
+        v = data.get("accountNumber")
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s if s else None
+
 def send_whatsapp_message(message):
     encoded = urllib.parse.quote(message)
     url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_PHONE}&text={encoded}&apikey={CALLMEBOT_API_KEY}"
@@ -1204,6 +1217,7 @@ def update_fcm_token():
         user_email = data.get("user_email")
         user_id = data.get("user_id")
         preferred_language = _preferred_language_from_request(data)
+        account_number = _account_number_from_request(data)
         
         if not fcm_token:
             return jsonify({
@@ -1258,6 +1272,8 @@ def update_fcm_token():
                 client_set = {"fcm_token": fcm_token, "fcm_token_updated_at": now}
                 if preferred_language:
                     client_set["preferred_language"] = preferred_language
+                if account_number:
+                    client_set["account_number"] = account_number
                 update_op = {"$set": client_set}
                 if has_reset_pass:
                     update_op["$unset"] = {"device_reset_allow_next_login": "", "device_reset_expires_at": ""}
@@ -1287,6 +1303,8 @@ def update_fcm_token():
                     }
                     if preferred_language:
                         link_set["preferred_language"] = preferred_language
+                    if account_number:
+                        link_set["account_number"] = account_number
                     clients_collection.update_one(
                         {"_id": existing_client["_id"]},
                         {"$set": link_set},
@@ -1309,6 +1327,8 @@ def update_fcm_token():
                     }
                     if preferred_language:
                         new_client["preferred_language"] = preferred_language
+                    if account_number:
+                        new_client["account_number"] = account_number
                     clients_collection.insert_one(new_client)
                     updated = True
         
@@ -1334,6 +1354,85 @@ def update_fcm_token():
         print(f"❌ Error in update_fcm_token endpoint: {e}")
         import traceback
         print(f"   Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+@routes.route("/api/update_account_number", methods=["POST"])
+def update_account_number():
+    """
+    Update account number for a client.
+    Accepts account_number/accountNumber + one identifier: client_id, user_email, or user_id.
+    """
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "Request body is required"}), 400
+
+        account_number = _account_number_from_request(data)
+        if not account_number:
+            return jsonify({"success": False, "error": "account_number is required"}), 400
+
+        client_id = data.get("client_id")
+        user_email = (data.get("user_email") or "").strip()
+        user_id = (data.get("user_id") or "").strip()
+
+        if not client_id and not user_email and not user_id:
+            return jsonify({
+                "success": False,
+                "error": "Provide one identifier: client_id, user_email, or user_id"
+            }), 400
+
+        update_doc = {
+            "$set": {
+                "account_number": account_number,
+                "account_number_updated_at": datetime.utcnow(),
+            }
+        }
+        updated = False
+
+        if client_id:
+            try:
+                result = clients_collection.update_one({"_id": ObjectId(client_id)}, update_doc)
+                if result.matched_count > 0:
+                    updated = True
+            except Exception:
+                pass
+
+        if not updated and user_email:
+            result = clients_collection.update_one({"email": user_email}, update_doc)
+            if result.matched_count > 0:
+                updated = True
+
+        if not updated and user_id:
+            # Try common identifiers used in this project
+            try:
+                result = clients_collection.update_one({"_id": ObjectId(user_id)}, update_doc)
+                if result.matched_count > 0:
+                    updated = True
+            except Exception:
+                pass
+            if not updated:
+                result = clients_collection.update_one({"firebase_uid": user_id}, update_doc)
+                if result.matched_count > 0:
+                    updated = True
+            if not updated:
+                result = clients_collection.update_one({"phone": user_id}, update_doc)
+                if result.matched_count > 0:
+                    updated = True
+
+        if not updated:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Account number updated successfully",
+            "account_number": account_number,
+        }), 200
+
+    except Exception as e:
         return jsonify({
             "success": False,
             "error": f"Internal server error: {str(e)}"
