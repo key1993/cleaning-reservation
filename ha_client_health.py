@@ -59,8 +59,8 @@ def _notify_health_transitions(
 
     checks: Tuple[Tuple[str, str, Optional[bool], Optional[bool]], ...] = (
         ("Brain (HA)", "🏠", old_pi, new_pi),
-        ("Sungrow plant", "⚡", old_grid, new_grid),
-        ("SmartLife device", "☀️", old_solar, new_solar),
+        ("Grid", "⚡", old_grid, new_grid),
+        ("Solar", "☀️", old_solar, new_solar),
     )
 
     for label, icon, old_v, new_v in checks:
@@ -99,9 +99,10 @@ def _headers(token: str) -> Dict[str, str]:
 def poll_client_health(
     ha_url: str,
     ha_token: str,
+    account_id: Optional[str] = None,
     *,
     timeout: float = DEFAULT_TIMEOUT,
-) -> Tuple[Optional[bool], bool, bool]:
+) -> Tuple[Optional[bool], Optional[bool], Optional[bool]]:
     """
     Returns (pi_ok, sg_plant_ok, smartlife_ok).
     pi_ok: True if GET /api/config succeeds with this token (Brain reachable).
@@ -112,6 +113,7 @@ def poll_client_health(
     token = (ha_token or "").strip()
     if not base or not token:
         return (None, None, None)
+    account_id = str(account_id or "").strip()
 
     hdrs = _headers(token)
     pi_ok: Optional[bool] = None
@@ -134,9 +136,12 @@ def poll_client_health(
         return (False, False, False)
 
     def entity_running_ok(entity_id: str) -> bool:
+        if not account_id:
+            return False
         try:
             r = requests.get(
                 f"{base}/api/states/{entity_id}",
+                params={"account_id": account_id},
                 headers=hdrs,
                 timeout=timeout,
                 verify=VERIFY_SSL,
@@ -189,6 +194,7 @@ def _apply_health_update(
 def _refresh_one_client(clients_collection: Any, client: Dict[str, Any]) -> None:
     ha_url = client.get("ha_url") or ""
     ha_token = client.get("ha_token") or ""
+    account_id = client.get("account_number") or client.get("account_id") or ""
     cid = client["_id"]
 
     old_pi = client.get("health_pi_ok")
@@ -212,7 +218,8 @@ def _refresh_one_client(clients_collection: Any, client: Dict[str, Any]) -> None
         )
         return
 
-    pi_ok, grid_ok, solar_ok = poll_client_health(ha_url, ha_token)
+    # Sensor status endpoints require account_id query parameter.
+    pi_ok, grid_ok, solar_ok = poll_client_health(ha_url, ha_token, account_id=account_id)
     _apply_health_update(clients_collection, cid, pi_ok, grid_ok, solar_ok)
     _notify_health_transitions(
         full_name,
@@ -235,6 +242,8 @@ def refresh_all_clients_health(clients_collection: Any, max_workers: int = 12) -
             {
                 "ha_url": 1,
                 "ha_token": 1,
+                "account_number": 1,
+                "account_id": 1,
                 "full_name": 1,
                 "email": 1,
                 "phone": 1,
