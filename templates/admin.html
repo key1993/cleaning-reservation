@@ -1065,6 +1065,7 @@
                                 <th>Location</th>
                                 <th>System Type</th>
                                 <th>Brain URL</th>
+                                <th>Account Number</th>
                                 <th>Brain Token</th>
                                 <th>Preferred language</th>
                                 <th>FCM Token</th>
@@ -1134,6 +1135,7 @@
                                 </td>
                                 <td>{{ c.system_type }}</td>
                                 <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.ha_url or 'N/A' }}</td>
+                                <td>{{ c.get('account_number', 'N/A') }}</td>
                                 <td>
                                     <div class="token-cell">
                                         <span class="token-text">{{ c.ha_token[:20] if c.ha_token else 'N/A' }}{% if c.ha_token %}...{% endif %}</span>
