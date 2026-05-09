@@ -1071,6 +1071,7 @@
                                 <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
+                                <th>Backups</th>
                                 <th>Firebase Actions</th>
                             </tr>
                         </thead>
@@ -1188,6 +1189,16 @@
                                         <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
                                         <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
                                     </select>
+                                </td>
+                                <td>
+                                    <a
+                                        class="btn btn-sm btn-secondary"
+                                        href="/admin/client_backup/{{ c._id }}"
+                                        title="Download account backup JSON"
+                                        style="font-size: 12px; padding: 4px 8px;"
+                                    >
+                                        📄 Download
+                                    </a>
                                 </td>
                                 <td>
                                     {% if c.firebase_uid %}

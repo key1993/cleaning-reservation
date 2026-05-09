@@ -26,6 +26,14 @@ routes = Blueprint("routes", __name__)
 
 WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
 CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
+BACKUP_HOME_BASELINE_ENTITY = os.environ.get(
+    "BACKUP_HOME_BASELINE_ENTITY",
+    "input_number.home_monthly_baseline",
+)
+BACKUP_SOLAR_BASELINE_ENTITY = os.environ.get(
+    "BACKUP_SOLAR_BASELINE_ENTITY",
+    "input_number.solar_monthly_baseline",
+)
 
 # Stored values are full names "Arabic" / "English" (admin + reports); aliases normalize from the app.
 _PREFERRED_LANGUAGE_ALIASES = {
@@ -89,6 +97,124 @@ def _account_uid_from_request(data):
         return None
     s = str(v).strip()
     return s if s else None
+
+
+def _client_account_id(client):
+    """Account id used by HA states API query parameter."""
+    raw = client.get("account_number") or client.get("account_id")
+    s = str(raw).strip() if raw is not None else ""
+    return s if s else None
+
+
+def _fetch_ha_entity_state(ha_url, ha_token, entity_id, account_id, timeout=10):
+    """Fetch HA entity state via /api/states/<entity>?account_id=<id>."""
+    base = (ha_url or "").strip().rstrip("/")
+    token = (ha_token or "").strip()
+    acc = (account_id or "").strip()
+    if not base or not token or not acc:
+        return {"success": False, "state": None, "error": "Missing ha_url/ha_token/account_id"}
+    try:
+        response = requests.get(
+            f"{base}/api/states/{entity_id}",
+            params={"account_id": acc},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            timeout=timeout,
+        )
+        if response.status_code != 200:
+            return {"success": False, "state": None, "error": f"HTTP {response.status_code}"}
+        payload = response.json() if response.content else {}
+        state = payload.get("state")
+        return {"success": True, "state": state, "error": None}
+    except Exception as e:
+        return {"success": False, "state": None, "error": str(e)}
+
+
+def _normalize_baseline_value(state):
+    """Convert HA state to numeric when possible, otherwise keep trimmed string."""
+    if state is None:
+        return None
+    s = str(state).strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return s
+
+
+def fetch_client_backup_baselines(client_doc):
+    """
+    Fetch baseline entities for one client from its Brain URL using account_id.
+    Returns dict with values + per-entity status.
+    """
+    account_id = _client_account_id(client_doc)
+    home_raw = _fetch_ha_entity_state(
+        client_doc.get("ha_url"),
+        client_doc.get("ha_token"),
+        BACKUP_HOME_BASELINE_ENTITY,
+        account_id,
+    )
+    solar_raw = _fetch_ha_entity_state(
+        client_doc.get("ha_url"),
+        client_doc.get("ha_token"),
+        BACKUP_SOLAR_BASELINE_ENTITY,
+        account_id,
+    )
+
+    home_value = _normalize_baseline_value(home_raw.get("state"))
+    solar_value = _normalize_baseline_value(solar_raw.get("state"))
+    return {
+        "account_id": account_id,
+        "home_monthly_baseline": home_value,
+        "solar_monthly_baseline": solar_value,
+        "home_fetch_ok": bool(home_raw.get("success")),
+        "solar_fetch_ok": bool(solar_raw.get("success")),
+        "home_fetch_error": home_raw.get("error"),
+        "solar_fetch_error": solar_raw.get("error"),
+    }
+
+
+def refresh_all_clients_backup_baselines(target_clients_collection=None):
+    """
+    Refresh backup baseline values for all clients.
+    Intended for scheduler usage (daily refresh).
+    """
+    coll = target_clients_collection or clients_collection
+    clients = list(
+        coll.find(
+            {},
+            {
+                "ha_url": 1,
+                "ha_token": 1,
+                "account_number": 1,
+                "account_id": 1,
+            },
+        )
+    )
+    now = datetime.utcnow()
+    updated = 0
+    failed = 0
+    for c in clients:
+        result = fetch_client_backup_baselines(c)
+        set_doc = {
+            "backup_home_monthly_baseline": result.get("home_monthly_baseline"),
+            "backup_solar_monthly_baseline": result.get("solar_monthly_baseline"),
+            "backup_baselines_updated_at": now,
+            "backup_baselines_account_id": result.get("account_id"),
+            "backup_home_baseline_fetch_ok": result.get("home_fetch_ok"),
+            "backup_solar_baseline_fetch_ok": result.get("solar_fetch_ok"),
+            "backup_home_baseline_fetch_error": result.get("home_fetch_error"),
+            "backup_solar_baseline_fetch_error": result.get("solar_fetch_error"),
+        }
+        coll.update_one({"_id": c["_id"]}, {"$set": set_doc})
+        if result.get("home_fetch_ok") and result.get("solar_fetch_ok"):
+            updated += 1
+        else:
+            failed += 1
+    return {"total": len(clients), "updated": updated, "failed": failed}
 
 def send_whatsapp_message(message):
     encoded = urllib.parse.quote(message)

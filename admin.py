@@ -1,10 +1,24 @@
-from flask import Blueprint, render_template, session, redirect, request, url_for, jsonify
+from flask import Blueprint, render_template, session, redirect, request, url_for, jsonify, make_response
 from db import reservations_collection, clients_collection, cleaning_crew_collection
 from bson import ObjectId
 from functools import wraps
 from datetime import datetime, timedelta
+import json
 
 admin = Blueprint("admin", __name__)
+
+
+def _json_safe(value):
+    """Convert BSON/Datetime objects to JSON-safe values recursively."""
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 
 def admin_login_required(f):
     """Decorator to require admin login for protected routes"""
@@ -388,3 +402,52 @@ def generate_ebsher_code():
             "success": False,
             "error": f"Internal server error: {str(e)}"
         }), 500
+
+
+@admin.route("/admin/client_backup/<client_id>", methods=["GET"])
+@admin_login_required
+def download_client_backup(client_id):
+    """Download one client backup JSON with latest baseline snapshots."""
+    try:
+        client = clients_collection.find_one({"_id": ObjectId(client_id)})
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 404
+
+        # Try live refresh of baseline values before export.
+        try:
+            from routes import fetch_client_backup_baselines
+
+            baseline = fetch_client_backup_baselines(client)
+            clients_collection.update_one(
+                {"_id": client["_id"]},
+                {
+                    "$set": {
+                        "backup_home_monthly_baseline": baseline.get("home_monthly_baseline"),
+                        "backup_solar_monthly_baseline": baseline.get("solar_monthly_baseline"),
+                        "backup_baselines_updated_at": datetime.utcnow(),
+                        "backup_baselines_account_id": baseline.get("account_id"),
+                        "backup_home_baseline_fetch_ok": baseline.get("home_fetch_ok"),
+                        "backup_solar_baseline_fetch_ok": baseline.get("solar_fetch_ok"),
+                        "backup_home_baseline_fetch_error": baseline.get("home_fetch_error"),
+                        "backup_solar_baseline_fetch_error": baseline.get("solar_fetch_error"),
+                    }
+                },
+            )
+            client = clients_collection.find_one({"_id": ObjectId(client_id)}) or client
+        except Exception as baseline_error:
+            print(f"⚠️ Backup baseline refresh failed for {client_id}: {baseline_error}")
+
+        payload = {
+            "exported_at": datetime.utcnow().isoformat(),
+            "client": _json_safe(client),
+        }
+        body = json.dumps(payload, indent=2, ensure_ascii=True)
+        file_hint = str(client.get("account_number") or client_id).replace(" ", "_")
+        filename = f"client_backup_{file_hint}.json"
+
+        response = make_response(body)
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

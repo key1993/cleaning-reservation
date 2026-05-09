@@ -1,5 +1,10 @@
 from flask import Flask
-from routes import routes, process_payment_reminders, _canonical_preferred_language
+from routes import (
+    routes,
+    process_payment_reminders,
+    refresh_all_clients_backup_baselines,
+    _canonical_preferred_language,
+)
 from admin import admin
 from auth import auth
 import os
@@ -12,6 +17,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from firebase_service import initialize_firebase
 import atexit
 import sys
+import random
 
 app = Flask(__name__)
 
@@ -131,6 +137,44 @@ if _try_acquire_scheduler_master_lock():
             name="Poll Brain (HA) health for all clients",
             replace_existing=True,
         )
+
+    def _schedule_next_backup_refresh(first=False):
+        from apscheduler.triggers.date import DateTrigger
+
+        now = datetime.now()
+        if first:
+            # First run: random time within the next 24 hours.
+            run_at = now + timedelta(minutes=random.randint(5, 24 * 60))
+        else:
+            # Subsequent runs: random hour/minute on the next day.
+            target_date = (now + timedelta(days=1)).date()
+            run_at = datetime.combine(target_date, datetime.min.time()).replace(
+                hour=random.randint(0, 23),
+                minute=random.randint(0, 59),
+            )
+        scheduler.add_job(
+            func=scheduled_client_backup_refresh,
+            trigger=DateTrigger(run_date=run_at),
+            id="client_backup_refresh_daily",
+            name="Refresh client backup baselines daily at random time",
+            replace_existing=True,
+        )
+        print(f"[SCHEDULER] Next client backup refresh scheduled at {run_at.isoformat()}")
+
+    def scheduled_client_backup_refresh():
+        try:
+            result = refresh_all_clients_backup_baselines(clients_collection)
+            print(
+                "[SCHEDULER] Client backup baseline refresh completed: "
+                f"{result.get('updated', 0)} updated, {result.get('failed', 0)} failed"
+            )
+        except Exception as e:
+            print(f"[SCHEDULER] Client backup baseline refresh error: {e}")
+        finally:
+            # Keep one random run scheduled every day.
+            _schedule_next_backup_refresh(first=False)
+
+    _schedule_next_backup_refresh(first=True)
 
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown())
