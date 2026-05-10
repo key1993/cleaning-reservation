@@ -731,6 +731,11 @@
             background: #9ca3af;
         }
 
+        .health-dot--standby {
+            background: #fd7e14;
+            box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.25);
+        }
+
         /* Toast Notification */
         .toast {
             position: fixed;
@@ -1093,15 +1098,15 @@
                                             <span class="health-indicator__icon" aria-hidden="true">🏠</span>
                                             <span class="health-indicator__label">Brain</span>
                                         </div>
-                                        <div class="health-indicator" title="Sungrow: sensor.sg_plant_status (online/active/normal = green)">
+                                        <div class="health-indicator" title="Credit: sensor.smartlife_device_status (online/active/normal = green)">
                                             <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
                                             <span class="health-indicator__icon" aria-hidden="true">⚡</span>
-                                            <span class="health-indicator__label">Sungrow</span>
+                                            <span class="health-indicator__label">Credit</span>
                                         </div>
-                                        <div class="health-indicator" title="SmartLife: sensor.smartlife_device_status (online/active/normal = green)">
-                                            <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
+                                        <div class="health-indicator" title="Inverter: sensor.sg_plant_status; if input_boolean.is_night_time is ON and inverter is not healthy, show standby (orange)">
+                                            <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == 'standby' %}health-dot--standby{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
                                             <span class="health-indicator__icon" aria-hidden="true">☀️</span>
-                                            <span class="health-indicator__label">SmartLife</span>
+                                            <span class="health-indicator__label">Inverter</span>
                                         </div>
                                     </div>
                                 </td>

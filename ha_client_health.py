@@ -1,6 +1,6 @@
 """
 Poll each client's Home Assistant (Brain URL + token) for connectivity and entity states.
-Sungrow/SmartLife sensors are green when state is online/active/normal.
+Credit/Inverter sensors are green when state is online/active/normal.
 """
 import os
 import threading
@@ -14,6 +14,7 @@ DEFAULT_TIMEOUT = float(os.environ.get("HA_HEALTH_TIMEOUT", "8"))
 VERIFY_SSL = os.environ.get("HA_HEALTH_VERIFY_SSL", "true").lower() in ("1", "true", "yes")
 SG_PLANT_STATUS_ENTITY = os.environ.get("HA_SG_PLANT_STATUS_ENTITY", "sensor.sg_plant_status")
 SMARTLIFE_STATUS_ENTITY = os.environ.get("HA_SMARTLIFE_STATUS_ENTITY", "sensor.smartlife_device_status")
+IS_NIGHT_TIME_ENTITY = os.environ.get("HA_IS_NIGHT_TIME_ENTITY", "input_boolean.is_night_time")
 HEALTHY_SENSOR_STATES = {"online", "active", "normal"}
 HEALTH_ALERTS_WHATSAPP = os.environ.get("HEALTH_ALERTS_WHATSAPP", "true").lower() in (
     "1",
@@ -45,8 +46,8 @@ def _notify_health_transitions(
     new_pi: Optional[bool],
     old_grid: Optional[bool],
     new_grid: Optional[bool],
-    old_solar: Optional[bool],
-    new_solar: Optional[bool],
+    old_solar: Any,
+    new_solar: Any,
 ) -> None:
     """
     WhatsApp when a light goes red (fault) or returns green (recovered).
@@ -59,8 +60,8 @@ def _notify_health_transitions(
 
     checks: Tuple[Tuple[str, str, Optional[bool], Optional[bool]], ...] = (
         ("Brain (HA)", "🏠", old_pi, new_pi),
-        ("Grid", "⚡", old_grid, new_grid),
-        ("Solar", "☀️", old_solar, new_solar),
+        ("Credit", "⚡", old_grid, new_grid),
+        ("Inverter", "☀️", old_solar if isinstance(old_solar, bool) else None, new_solar if isinstance(new_solar, bool) else None),
     )
 
     for label, icon, old_v, new_v in checks:
@@ -102,11 +103,12 @@ def poll_client_health(
     account_id: Optional[str] = None,
     *,
     timeout: float = DEFAULT_TIMEOUT,
-) -> Tuple[Optional[bool], Optional[bool], Optional[bool]]:
+) -> Tuple[Optional[bool], Optional[bool], Any]:
     """
-    Returns (pi_ok, sg_plant_ok, smartlife_ok).
+    Returns (pi_ok, credit_ok, inverter_ok_or_standby).
     pi_ok: True if GET /api/config succeeds with this token (Brain reachable).
-    sg_plant_ok / smartlife_ok: True when entity state is online/active/normal; False otherwise.
+    credit_ok: smartlife status in online/active/normal.
+    inverter_ok_or_standby: plant status in online/active/normal; or "standby" if non-healthy at night.
     If Brain is unreachable, returns (False, False, False).
     """
     base = _normalize_base(ha_url)
@@ -135,9 +137,9 @@ def poll_client_health(
     if not pi_ok:
         return (False, False, False)
 
-    def entity_running_ok(entity_id: str) -> bool:
+    def entity_state(entity_id: str) -> Optional[str]:
         if not account_id:
-            return False
+            return None
         try:
             r = requests.get(
                 f"{base}/api/states/{entity_id}",
@@ -147,16 +149,30 @@ def poll_client_health(
                 verify=VERIFY_SSL,
             )
             if r.status_code != 200:
-                return False
+                return None
             data = r.json()
-            state = str(data.get("state") or "").strip().lower()
-            return state in HEALTHY_SENSOR_STATES
+            return str(data.get("state") or "").strip().lower()
         except (requests.RequestException, ValueError, TypeError):
-            return False
+            return None
 
-    grid_ok = entity_running_ok(SG_PLANT_STATUS_ENTITY)
-    solar_ok = entity_running_ok(SMARTLIFE_STATUS_ENTITY)
-    return (pi_ok, grid_ok, solar_ok)
+    smartlife_state = entity_state(SMARTLIFE_STATUS_ENTITY)
+    plant_state = entity_state(SG_PLANT_STATUS_ENTITY)
+    is_night_state = entity_state(IS_NIGHT_TIME_ENTITY)
+
+    # Middle (⚡) = Credit: derived from SmartLife status.
+    credit_ok = bool(smartlife_state in HEALTHY_SENSOR_STATES)
+
+    inverter_healthy = bool(plant_state in HEALTHY_SENSOR_STATES)
+    is_night = bool(is_night_state in {"on", "true", "1", "active", "yes"})
+    if inverter_healthy:
+        inverter_ok: Any = True
+    elif is_night:
+        # Avoid false positive notifications at night when inverter can be off/unavailable.
+        inverter_ok = "standby"
+    else:
+        inverter_ok = False
+
+    return (pi_ok, credit_ok, inverter_ok)
 
 
 def _apply_health_update(
@@ -164,7 +180,7 @@ def _apply_health_update(
     client_id: Any,
     pi_ok: Optional[bool],
     grid_ok: Optional[bool],
-    solar_ok: Optional[bool],
+    solar_ok: Any,
 ) -> None:
     set_doc: Dict[str, Any] = {"health_reported_at": datetime.utcnow()}
     unset_doc: Dict[str, str] = {}
