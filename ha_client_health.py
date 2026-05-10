@@ -1,6 +1,6 @@
 """
 Poll each client's Home Assistant (Brain URL + token) for connectivity and entity states.
-Credit/Inverter sensors are green when state is online/active/normal.
+Grid/Inverter sensors are green when state is online/active/normal.
 """
 import os
 import threading
@@ -60,7 +60,7 @@ def _notify_health_transitions(
 
     checks: Tuple[Tuple[str, str, Optional[bool], Optional[bool]], ...] = (
         ("Brain (HA)", "🏠", old_pi, new_pi),
-        ("Credit", "⚡", old_grid, new_grid),
+        ("Grid", "⚡", old_grid, new_grid),
         ("Inverter", "☀️", old_solar if isinstance(old_solar, bool) else None, new_solar if isinstance(new_solar, bool) else None),
     )
 
@@ -105,9 +105,9 @@ def poll_client_health(
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Tuple[Optional[bool], Optional[bool], Any]:
     """
-    Returns (pi_ok, credit_ok, inverter_ok_or_standby).
+    Returns (pi_ok, grid_ok, inverter_ok_or_standby).
     pi_ok: True if GET /api/config succeeds with this token (Brain reachable).
-    credit_ok: smartlife status in online/active/normal.
+    grid_ok: smartlife status in online/active/normal.
     inverter_ok_or_standby: plant status in online/active/normal; or "standby" if non-healthy at night.
     If Brain is unreachable, returns (False, False, False).
     """
@@ -159,8 +159,8 @@ def poll_client_health(
     plant_state = entity_state(SG_PLANT_STATUS_ENTITY)
     is_night_state = entity_state(IS_NIGHT_TIME_ENTITY)
 
-    # Middle (⚡) = Credit: derived from SmartLife status.
-    credit_ok = bool(smartlife_state in HEALTHY_SENSOR_STATES)
+    # Middle (⚡) = Grid: derived from SmartLife status.
+    grid_ok = bool(smartlife_state in HEALTHY_SENSOR_STATES)
 
     inverter_healthy = bool(plant_state in HEALTHY_SENSOR_STATES)
     is_night = bool(is_night_state in {"on", "true", "1", "active", "yes"})
@@ -172,7 +172,7 @@ def poll_client_health(
     else:
         inverter_ok = False
 
-    return (pi_ok, credit_ok, inverter_ok)
+    return (pi_ok, grid_ok, inverter_ok)
 
 
 def _apply_health_update(

@@ -1098,10 +1098,10 @@
                                             <span class="health-indicator__icon" aria-hidden="true">🏠</span>
                                             <span class="health-indicator__label">Brain</span>
                                         </div>
-                                        <div class="health-indicator" title="Credit: sensor.smartlife_device_status (online/active/normal = green)">
+                                        <div class="health-indicator" title="Grid: sensor.smartlife_device_status (online/active/normal = green)">
                                             <span class="health-dot {% if c.get('health_inverter_ok') == True %}health-dot--ok{% elif c.get('health_inverter_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
                                             <span class="health-indicator__icon" aria-hidden="true">⚡</span>
-                                            <span class="health-indicator__label">Credit</span>
+                                            <span class="health-indicator__label">Grid</span>
                                         </div>
                                         <div class="health-indicator" title="Inverter: sensor.sg_plant_status; if input_boolean.is_night_time is ON and inverter is not healthy, show standby (orange)">
                                             <span class="health-dot {% if c.get('health_solar_ok') == True %}health-dot--ok{% elif c.get('health_solar_ok') == 'standby' %}health-dot--standby{% elif c.get('health_solar_ok') == False %}health-dot--bad{% else %}health-dot--unknown{% endif %}"></span>
