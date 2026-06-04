@@ -202,7 +202,7 @@ def list_pis():
     seen = {}
     for doc in _files_col().find(
         {"pi_id": {"$exists": True, "$ne": None}},
-        {"pi_id": 1, "pi_name": 1, "uploadDate": 1},
+        {"pi_id": 1, "pi_name": 1, "uploadDate": 1, "account_ids": 1, "account_names": 1},
     ).sort("uploadDate", -1):
         pi_id = doc.get("pi_id")
         if pi_id and pi_id not in seen:
