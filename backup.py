@@ -263,7 +263,7 @@ def sync_client_assignments():
             {"account_number": {"$in": account_ids}},
             {"$set": {"pi_id": pi_id}},
         )
-        total_assigned += r.modified_count
+        total_assigned += r.matched_count  # matched_count: correct even when already assigned
 
         r = clients_col.update_many(
             {"pi_id": pi_id, "account_number": {"$nin": account_ids}},

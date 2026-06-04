@@ -1497,8 +1497,16 @@
         try {
             const res = await fetch('/backup/sync-clients', { method:'POST' });
             const data = await res.json();
-            if (data.success) showToast(`Synced ${data.pis_synced} Pi(s) — ${data.clients_assigned} assigned, ${data.clients_cleared} cleared.`);
-            else showToast('Sync failed: ' + (data.error||'Unknown'));
+            if (data.success) {
+                if (data.pis_synced === 0) {
+                    showToast('No Pi backups found with account data. Push a fresh backup from the Pi first, then sync again.');
+                } else {
+                    showToast(`Synced ${data.pis_synced} Pi(s) — ${data.clients_assigned} client(s) matched. Reloading…`);
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+            } else {
+                showToast('Sync failed: ' + (data.error||'Unknown'));
+            }
         } catch(e) { showToast('Sync error: ' + e.message); }
         finally { btn.disabled = false; btn.textContent = orig; }
     }
