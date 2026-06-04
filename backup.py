@@ -114,14 +114,21 @@ def upload_backup():
                 except Exception:
                     pass
 
-        # Parse account_ids before storing — saved in GridFS metadata so sync can
-        # re-run the assignment later without a new backup push.
+        # Parse account_ids and account_names — stored in GridFS metadata so sync
+        # can re-run assignment later and the admin UI can display account names.
         try:
             account_ids = json.loads(request.form.get("account_ids", "[]"))
             if not isinstance(account_ids, list):
                 account_ids = []
         except Exception:
             account_ids = []
+
+        try:
+            account_names = json.loads(request.form.get("account_names", "{}"))
+            if not isinstance(account_names, dict):
+                account_names = {}
+        except Exception:
+            account_names = {}
 
         file_id = fs.put(
             data,
@@ -132,6 +139,7 @@ def upload_backup():
             pi_id=pi_id or None,
             pi_name=pi_name,
             account_ids=account_ids,
+            account_names=account_names,
         )
 
         # Auto-assign clients to this Pi based on account IDs.
@@ -198,10 +206,14 @@ def list_pis():
     ).sort("uploadDate", -1):
         pi_id = doc.get("pi_id")
         if pi_id and pi_id not in seen:
+            raw_ids = doc.get("account_ids", [])
+            raw_names = doc.get("account_names", {})
             seen[pi_id] = {
                 "pi_id": pi_id,
                 "pi_name": doc.get("pi_name", "Unknown Pi"),
                 "last_backup": doc.get("uploadDate", datetime.utcnow()).isoformat(),
+                "account_ids": raw_ids if isinstance(raw_ids, list) else [],
+                "account_names": raw_names if isinstance(raw_names, dict) else {},
             }
     return jsonify({"pis": list(seen.values())})
 
@@ -278,6 +290,32 @@ def sync_client_assignments():
         "clients_assigned": total_assigned,
         "clients_cleared": total_cleared,
     })
+
+
+@backup.route("/backup/link-account", methods=["POST"])
+@_admin_required
+def link_account():
+    """Set account_number on a client document to link it to a Pi account folder.
+
+    Body JSON: { "client_id": "<mongo_id>", "account_number": "acc_xxxx" }
+    After linking all accounts, call /backup/sync-clients to assign pi_id.
+    """
+    data = request.json or {}
+    client_id = (data.get("client_id") or "").strip()
+    account_number = (data.get("account_number") or "").strip()
+    if not client_id or not account_number:
+        return jsonify({"error": "client_id and account_number are required"}), 400
+    clients_col = backup.db["clients"]
+    try:
+        r = clients_col.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {"account_number": account_number}},
+        )
+        if r.matched_count == 0:
+            return jsonify({"error": "Client not found"}), 404
+        return jsonify({"success": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @backup.route("/backup/diagnose", methods=["GET"])

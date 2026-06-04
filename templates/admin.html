@@ -797,6 +797,9 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Pi account → client linking panel (populated by JS) -->
+                    <div id="pi-link-section" style="display:none;border-top:1px solid var(--border);padding:20px"></div>
                 </div>
             </div>
 
@@ -909,6 +912,9 @@
 
 <!-- ═══════════════════════════════════════ JAVASCRIPT ═══════════════════════════════════════ -->
 <script>
+    // All clients available for Pi account linking (server-rendered)
+    const _allClients = [{% for c in clients %}{"id":"{{ c._id }}","name":{{ c.full_name|tojson }},"account_number":{{ (c.get('account_number') or '')|tojson }}},{% endfor %}];
+
     const TOPBAR_META = {
         reservations: { t: 'Reservations', s: 'Manage and track all solar-panel cleaning reservations' },
         clients:       { t: 'Clients',       s: 'Registered customers, systems and subscriptions' },
@@ -1480,6 +1486,7 @@
             const res = await fetch('/backup/pis'); if (!res.ok) return;
             const data = await res.json(); _pisList = data.pis || [];
             _populateClientPiDropdowns();
+            _renderLinkSection(_pisList);
         } catch(e) {}
     }
     function _populateClientPiDropdowns() {
@@ -1491,6 +1498,69 @@
                 cell.innerHTML = `<span style="font-size:11px;color:var(--text-3)">—</span>`;
             }
         });
+    }
+
+    function _renderLinkSection(pis) {
+        const section = document.getElementById('pi-link-section');
+        if (!section) return;
+        const pisWithAccounts = pis.filter(p => p.account_ids && p.account_ids.length > 0);
+        if (!pisWithAccounts.length) { section.style.display = 'none'; return; }
+
+        let html = `<div style="font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:4px">🔗 Link Pi Accounts to Clients</div>
+            <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Each Pi account folder must be matched to a client once. After linking, click ⚡ Sync Assignments above.</div>`;
+
+        for (const pi of pisWithAccounts) {
+            const names = pi.account_names || {};
+            html += `<div style="margin-bottom:14px">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px">${pi.pi_name}</div>
+                <div style="display:flex;flex-direction:column;gap:6px">`;
+            for (const accId of pi.account_ids) {
+                const accName = names[accId] || accId;
+                const linked = _allClients.find(c => c.account_number === accId);
+                const opts = _allClients.map(c =>
+                    `<option value="${c.id}"${linked && linked.id === c.id ? ' selected' : ''}>${c.name}</option>`
+                ).join('');
+                html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px" id="link-row-${accId}">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-size:13px;font-weight:600;color:var(--text)">${accName}</div>
+                        <div style="font-size:10px;color:var(--text-3);font-family:monospace;margin-top:1px">${accId}</div>
+                    </div>
+                    <select id="link-sel-${accId}" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);max-width:220px">
+                        <option value="">— select client —</option>${opts}
+                    </select>
+                    <button class="btn btn-sm btn-primary" onclick="linkPiAccount('${accId}',this)" style="flex-shrink:0;white-space:nowrap">
+                        ${linked ? '✅ Linked' : 'Link'}
+                    </button>
+                </div>`;
+            }
+            html += `</div></div>`;
+        }
+        section.innerHTML = html;
+        section.style.display = 'block';
+    }
+
+    async function linkPiAccount(accountId, btn) {
+        const sel = document.getElementById('link-sel-' + accountId);
+        if (!sel || !sel.value) { showToast('Select a client first.'); return; }
+        const clientId = sel.value;
+        const orig = btn.textContent; btn.disabled = true; btn.textContent = '…';
+        try {
+            const res = await fetch('/backup/link-account', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({client_id: clientId, account_number: accountId}),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || 'Failed');
+            btn.textContent = '✅ Linked';
+            btn.style.background = 'var(--green, #16a34a)';
+            const cl = _allClients.find(c => c.id === clientId);
+            if (cl) cl.account_number = accountId;
+            showToast('Linked! Now click ⚡ Sync Assignments to update the Raspberry Pi column.');
+        } catch(e) {
+            btn.textContent = orig; btn.disabled = false;
+            showToast('Error: ' + e.message);
+        }
     }
     async function syncClientAssignments(btn) {
         const orig = btn.textContent; btn.disabled = true; btn.textContent = 'Syncing…';
