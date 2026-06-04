@@ -1077,7 +1077,7 @@
                                 <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
-                                <th>Raspberry Pi</th>
+                                <th title="Assigned automatically when the Pi pushes a backup">Raspberry Pi ⚡</th>
                                 <th>Backups</th>
                                 <th>Firebase Actions</th>
                             </tr>
@@ -2994,28 +2994,14 @@
 
         function _populateClientPiDropdowns() {
             document.querySelectorAll('.pi-assign-cell').forEach(cell => {
-                const clientId = cell.dataset.clientId;
-                const selectedPiId = cell.dataset.piId || '';
-                const opts = _pisList.map(p =>
-                    `<option value="${p.pi_id}"${p.pi_id === selectedPiId ? ' selected' : ''}>${p.pi_name}</option>`
-                ).join('');
-                cell.innerHTML = `<select style="padding:3px 6px;font-size:12px;border-radius:4px;border:1px solid #ccc;min-width:110px" onchange="assignClientPi('${clientId}', this.value)"><option value=""${!selectedPiId ? ' selected' : ''}>— None —</option>${opts}</select>`;
+                const assignedPiId = cell.dataset.piId || '';
+                const pi = _pisList.find(p => p.pi_id === assignedPiId);
+                if (pi) {
+                    cell.innerHTML = `<span title="Auto-assigned from Pi backup" style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;color:#1d4ed8;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid #bfdbfe;white-space:nowrap">&#9729; ${pi.pi_name}</span>`;
+                } else {
+                    cell.innerHTML = `<span style="font-size:11px;color:#9ca3af" title="Will be assigned automatically on next backup">—</span>`;
+                }
             });
-        }
-
-        async function assignClientPi(clientId, piId) {
-            try {
-                const res = await fetch('/admin/update_client_pi/' + clientId, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({pi_id: piId}),
-                });
-                const data = await res.json();
-                if (data.success) showToast('Pi assignment saved.');
-                else alert('Error: ' + (data.error || 'Failed to save'));
-            } catch (e) {
-                alert('Error: ' + e.message);
-            }
         }
     </script>
 
