@@ -15,6 +15,7 @@ Required env vars:
   BACKUP_TOKEN    Shared secret that the Pi must send in X-Backup-Token header
 """
 
+import json
 import os
 from datetime import datetime
 from functools import wraps
@@ -78,11 +79,16 @@ def upload_backup():
     """Receive a .ebsherbackup file from a Raspberry Pi.
 
     Form fields:
-      backup  — the .ebsherbackup file
-      pi_id   — unique Pi identifier (UUID, auto-generated on the Pi)
-      pi_name — human-readable label (e.g. "Office Pi")
+      backup       — the .ebsherbackup file
+      pi_id        — unique Pi identifier (UUID, auto-generated on the Pi)
+      pi_name      — human-readable label (e.g. "Office Pi")
+      account_ids  — JSON array of account IDs managed by this Pi (e.g. ["acc_abc123"])
+                     Used to auto-assign the pi_id field on matching client documents.
 
     Each upload replaces the previous backup for that pi_id (one backup per Pi).
+    Clients whose account_number matches an entry in account_ids are automatically
+    assigned to this Pi. Clients previously on this Pi that are no longer in the
+    list have their pi_id cleared.
     """
     try:
         if "backup" not in request.files:
@@ -118,12 +124,40 @@ def upload_backup():
             pi_name=pi_name,
         )
 
+        # Auto-assign clients to this Pi based on account IDs reported by the Pi.
+        # Matches on the account_number field (acc_XXXX format stored per client).
+        clients_assigned = 0
+        clients_cleared = 0
+        try:
+            account_ids = json.loads(request.form.get("account_ids", "[]"))
+            if not isinstance(account_ids, list):
+                account_ids = []
+        except Exception:
+            account_ids = []
+
+        if pi_id and account_ids:
+            clients_col = backup.db["clients"]
+            # Assign this Pi to every client whose account_number is in the list
+            r = clients_col.update_many(
+                {"account_number": {"$in": account_ids}},
+                {"$set": {"pi_id": pi_id}},
+            )
+            clients_assigned = r.modified_count
+            # Remove Pi assignment from clients that were on this Pi but are no longer
+            r = clients_col.update_many(
+                {"pi_id": pi_id, "account_number": {"$nin": account_ids}},
+                {"$set": {"pi_id": None}},
+            )
+            clients_cleared = r.modified_count
+
         return jsonify({
             "success": True,
             "file_id": str(file_id),
             "filename": safe_name,
             "size_bytes": len(data),
             "stored_at": datetime.utcnow().isoformat(),
+            "clients_assigned": clients_assigned,
+            "clients_cleared": clients_cleared,
         })
     except Exception as exc:
         import traceback
