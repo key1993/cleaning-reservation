@@ -114,6 +114,15 @@ def upload_backup():
                 except Exception:
                     pass
 
+        # Parse account_ids before storing — saved in GridFS metadata so sync can
+        # re-run the assignment later without a new backup push.
+        try:
+            account_ids = json.loads(request.form.get("account_ids", "[]"))
+            if not isinstance(account_ids, list):
+                account_ids = []
+        except Exception:
+            account_ids = []
+
         file_id = fs.put(
             data,
             filename=safe_name,
@@ -122,18 +131,12 @@ def upload_backup():
             size_bytes=len(data),
             pi_id=pi_id or None,
             pi_name=pi_name,
+            account_ids=account_ids,
         )
 
-        # Auto-assign clients to this Pi based on account IDs reported by the Pi.
-        # Matches on the account_number field (acc_XXXX format stored per client).
+        # Auto-assign clients to this Pi based on account IDs.
         clients_assigned = 0
         clients_cleared = 0
-        try:
-            account_ids = json.loads(request.form.get("account_ids", "[]"))
-            if not isinstance(account_ids, list):
-                account_ids = []
-        except Exception:
-            account_ids = []
 
         if pi_id and account_ids:
             clients_col = backup.db["clients"]
@@ -220,6 +223,61 @@ def download_backup(pi_id: str):
         mimetype="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@backup.route("/backup/sync-clients", methods=["POST"])
+@_admin_required
+def sync_client_assignments():
+    """Re-run client Pi assignment from stored backup metadata.
+
+    Reads the account_ids list saved in GridFS metadata for every Pi backup
+    and updates client documents accordingly. Use this to assign clients that
+    existed before the auto-assignment feature was deployed, or after any
+    manual data change.
+    """
+    clients_col = backup.db["clients"]
+    total_assigned = 0
+    total_cleared = 0
+    pis_synced = 0
+
+    for doc in _files_col().find(
+        {"pi_id": {"$exists": True, "$ne": None}},
+        {"pi_id": 1, "account_ids": 1},
+    ):
+        pi_id = doc.get("pi_id")
+        raw = doc.get("account_ids", [])
+        if isinstance(raw, str):
+            try:
+                account_ids = json.loads(raw)
+            except Exception:
+                account_ids = []
+        elif isinstance(raw, list):
+            account_ids = raw
+        else:
+            account_ids = []
+
+        if not pi_id or not account_ids:
+            continue
+
+        r = clients_col.update_many(
+            {"account_number": {"$in": account_ids}},
+            {"$set": {"pi_id": pi_id}},
+        )
+        total_assigned += r.modified_count
+
+        r = clients_col.update_many(
+            {"pi_id": pi_id, "account_number": {"$nin": account_ids}},
+            {"$set": {"pi_id": None}},
+        )
+        total_cleared += r.modified_count
+        pis_synced += 1
+
+    return jsonify({
+        "success": True,
+        "pis_synced": pis_synced,
+        "clients_assigned": total_assigned,
+        "clients_cleared": total_cleared,
+    })
 
 
 @backup.route("/backup/delete/<pi_id>", methods=["DELETE", "POST"])

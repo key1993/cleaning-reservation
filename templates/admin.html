@@ -1359,6 +1359,7 @@
                     </div>
                     <div class="action-buttons">
                         <button class="btn btn-primary" onclick="loadBackups()">🔄 Refresh</button>
+                        <button class="btn btn-secondary" onclick="syncClientAssignments(this)" title="Match all clients to their Pi using stored backup metadata">⚡ Sync Client Assignments</button>
                     </div>
                 </div>
 
@@ -3002,6 +3003,28 @@
                     cell.innerHTML = `<span style="font-size:11px;color:#9ca3af" title="Will be assigned automatically on next backup">—</span>`;
                 }
             });
+        }
+
+        async function syncClientAssignments(btn) {
+            const orig = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Syncing...';
+            try {
+                const res = await fetch('/backup/sync-clients', {method: 'POST'});
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Synced ${data.pis_synced} Pi(s) — ${data.clients_assigned} client(s) assigned, ${data.clients_cleared} cleared.`);
+                    // Reload the clients tab Pi badges if it's visible
+                    if (typeof _loadPisForDropdowns === 'function') _loadPisForDropdowns();
+                } else {
+                    showToast('Sync failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showToast('Sync error: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = orig;
+            }
         }
     </script>
 
