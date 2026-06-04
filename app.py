@@ -7,6 +7,7 @@ from routes import (
 )
 from admin import admin
 from auth import auth
+from backup import backup
 import os
 from datetime import datetime, timedelta
 from pymongo import MongoClient
@@ -70,11 +71,13 @@ db = client.get_database("cleaning_reservation")
 routes.db = db
 admin.db = db
 auth.db = db
+backup.db = db
 
 # Register blueprints
 app.register_blueprint(routes)
 app.register_blueprint(admin)
 app.register_blueprint(auth)
+app.register_blueprint(backup)
 
 app.secret_key = "supersecretkey"
 

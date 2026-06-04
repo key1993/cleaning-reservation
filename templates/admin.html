@@ -932,6 +932,7 @@
             <button class="tab-btn active" onclick="showTab('reservations')">📋 Reservations</button>
             <button class="tab-btn" onclick="showTab('clients')">👥 Clients</button>
             <button class="tab-btn" onclick="showTab('cleaning_crew')">🧹 Cleaning Crew</button>
+            <button class="tab-btn" onclick="showTab('pi_backups'); loadBackups()">☁️ Pi Backups</button>
         </div>
 
         <!-- Reservations Tab -->
@@ -1341,6 +1342,53 @@
             </div>
         </div>
     </div>
+
+        <!-- Pi Backups Tab -->
+        <div id="pi_backups" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">☁️ Raspberry Pi Backups</div>
+                        <div class="card-subtitle">Encrypted platform snapshots pushed automatically from Pi devices</div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" onclick="loadBackups()">🔄 Refresh</button>
+                        <button class="btn btn-success" onclick="downloadLatestBackup()">⬇️ Download Latest</button>
+                    </div>
+                </div>
+
+                <!-- Status strip -->
+                <div id="backup-info-strip" style="margin:0 20px 16px;padding:14px 16px;background:#f0f4ff;border-radius:8px;border-left:4px solid #667eea;font-size:13px;color:#444;display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+                    <span>Loading backup info...</span>
+                </div>
+
+                <!-- Setup reminder (hidden once backups exist) -->
+                <div id="backup-setup-hint" style="margin:0 20px 16px;padding:14px 16px;background:#fffbeb;border-radius:8px;border-left:4px solid #f59e0b;font-size:13px;color:#78350f;display:none">
+                    <strong>No backups yet.</strong> On your Raspberry Pi, open the Ebsher UI → ☁️ Cloud Backup → Settings and enter:<br>
+                    <code style="background:#fef3c7;padding:2px 6px;border-radius:4px;font-size:12px">Cloud URL: https://&lt;your-render-app&gt;.onrender.com</code> &nbsp;
+                    <code style="background:#fef3c7;padding:2px 6px;border-radius:4px;font-size:12px">Token: (value of BACKUP_TOKEN env var)</code> &nbsp;
+                    <code style="background:#fef3c7;padding:2px 6px;border-radius:4px;font-size:12px">Passphrase: (your chosen secret)</code>
+                    — then click <em>Save</em> and <em>Backup Now</em>.
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="backups-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Uploaded At (UTC)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backups-tbody">
+                            <tr><td colspan="5" style="text-align:center;color:#888;padding:30px">Click the tab to load backups...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
     <!-- Code Generation Modal -->
     <div id="codeModal" class="modal">
@@ -2831,6 +2879,99 @@
                 sendButton.innerHTML = originalText;
                 sendButton.disabled = false;
             });
+        }
+
+        // ── Pi Backups tab ────────────────────────────────────────────────────
+
+        function _fmtBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        function _fmtDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return d.toLocaleString('en-GB', {dateStyle:'medium', timeStyle:'short'});
+        }
+
+        async function loadBackups() {
+            const tbody = document.getElementById('backups-tbody');
+            const strip = document.getElementById('backup-info-strip');
+            const hint  = document.getElementById('backup-setup-hint');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#888">Loading...</td></tr>';
+
+            try {
+                const res = await fetch('/backup/list');
+                if (res.status === 302 || res.redirected) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#e53e3e;padding:20px">Session expired — please log in again.</td></tr>';
+                    return;
+                }
+                const data = await res.json();
+                const backups = data.backups || [];
+
+                // Status strip
+                if (backups.length > 0) {
+                    const latest = backups[0];
+                    strip.innerHTML =
+                        `<strong>${backups.length}</strong> backup(s) stored &nbsp;|&nbsp; ` +
+                        `Latest: <strong>${latest.filename}</strong> &nbsp;|&nbsp; ` +
+                        `Size: <strong>${_fmtBytes(latest.size_bytes)}</strong> &nbsp;|&nbsp; ` +
+                        `Uploaded: <strong>${_fmtDate(latest.uploaded_at)}</strong>`;
+                    hint.style.display = 'none';
+                } else {
+                    strip.innerHTML = '<span style="color:#b45309">No backups stored yet.</span>';
+                    hint.style.display = 'block';
+                }
+
+                // Table rows
+                if (backups.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;padding:30px">No backups found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = backups.map((b, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td style="font-family:monospace;font-size:13px">${b.filename}</td>
+                        <td>${_fmtBytes(b.size_bytes)}</td>
+                        <td>${_fmtDate(b.uploaded_at)}</td>
+                        <td>
+                            <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;margin-right:6px"
+                                onclick="downloadBackup('${b.file_id}', '${b.filename}')">⬇️ Download</button>
+                            <button class="btn btn-danger" style="padding:5px 12px;font-size:12px"
+                                onclick="deleteBackup('${b.file_id}', '${b.filename}')">🗑️ Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#e53e3e;padding:20px">Error loading backups: ${err.message}</td></tr>`;
+            }
+        }
+
+        function downloadBackup(fileId, filename) {
+            window.location.href = '/backup/download/' + fileId;
+        }
+
+        function downloadLatestBackup() {
+            window.location.href = '/backup/latest/download';
+        }
+
+        async function deleteBackup(fileId, filename) {
+            if (!confirm('Delete backup "' + filename + '"?\n\nThis cannot be undone.')) return;
+            try {
+                const res = await fetch('/backup/delete/' + fileId, {method: 'POST'});
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Backup deleted.');
+                    loadBackups();
+                } else {
+                    alert('Delete failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
         }
     </script>
 
