@@ -1,6 +1,6 @@
 flask
 gunicorn
-pymongo
+pymongo==4.6.3
 dnspython
 requests
 APScheduler
