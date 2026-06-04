@@ -4,214 +4,233 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - EBSHER</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --bg: #F6F4EF;
+            --surface: #FFFFFF;
+            --border: #EBE7DE;
+            --border-2: #E0DBD0;
+            --text: #2C2A25;
+            --text-2: #6B665C;
+            --text-3: #9C978B;
+            --accent: #2D6BDA;
+            --accent-d: #1E54B8;
+            --accent-soft: #E5EFFC;
+            --rose-soft: #FAE4DF;
+            --rose-ink: #9F3422;
+            --teal: #0E9C8A;
+            --blue: #2D6BDA;
+            --shadow-sm: 0 1px 2px rgba(50,42,20,.04), 0 1px 3px rgba(50,42,20,.05);
+            --shadow-lg: 0 18px 50px rgba(40,34,18,.14), 0 4px 14px rgba(40,34,18,.07);
+            --r: 12px;
+            --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
         }
 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: var(--sans);
+            background: var(--bg);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
+            padding: 24px;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .login-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 50px 40px;
-            width: 100%;
-            max-width: 420px;
-            animation: slideUp 0.5s ease-out;
+        /* Subtle grid pattern on background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 40px 40px;
+            opacity: .45;
+            pointer-events: none;
         }
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .logo-container {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo-container img {
-            height: 100px;
-            margin-bottom: 10px;
-        }
-
-        .login-title {
-            text-align: center;
-            color: #333;
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-
-        .login-subtitle {
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 30px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            color: #333;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 8px;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 15px;
-            transition: all 0.3s ease;
-            outline: none;
-        }
-
-        .form-group input:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .error-message {
-            background-color: #fee;
-            color: #c33;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-            border-left: 4px solid #c33;
-        }
-
-        .error-message.show {
-            display: block;
-        }
-
-        .login-button {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 10px;
-        }
-
-        .login-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .login-button:active {
-            transform: translateY(0);
-        }
-
-        .password-toggle {
+        .card {
             position: relative;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            padding: 44px 40px 40px;
+            width: 100%;
+            max-width: 400px;
+            animation: rise .3s cubic-bezier(.32,.72,0,1);
         }
+        @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
 
-        .password-toggle-icon {
-            position: absolute;
-            right: 15px;
-            top: 50%;
+        /* Brand */
+        .brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 32px;
+        }
+        .brand-mark {
+            width: 56px; height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(150deg, var(--teal) 0%, var(--blue) 100%);
+            display: grid; place-items: center;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+        .brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+        .brand-name { font-size: 22px; font-weight: 800; letter-spacing: .03em; color: var(--text); }
+        .brand-sub { font-size: 13px; color: var(--text-3); font-weight: 600; margin-top: -6px; }
+
+        /* Divider */
+        .divider { height: 1px; background: var(--border); margin-bottom: 28px; }
+
+        /* Form */
+        .field { margin-bottom: 18px; }
+        .field label {
+            display: block;
+            font-size: 12px; font-weight: 700;
+            color: var(--text-2);
+            margin-bottom: 6px;
+            letter-spacing: .01em;
+        }
+        .input-wrap { position: relative; }
+        .field input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1px solid var(--border-2);
+            border-radius: var(--r);
+            font-size: 14px;
+            font-family: var(--sans);
+            color: var(--text);
+            background: var(--surface);
+            outline: none;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .field input::placeholder { color: var(--text-3); }
+        .field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+        .field input.has-toggle { padding-right: 42px; }
+
+        .toggle-btn {
+            position: absolute; right: 12px; top: 50%;
             transform: translateY(-50%);
-            cursor: pointer;
-            color: #666;
-            font-size: 18px;
-            user-select: none;
+            background: none; border: none;
+            cursor: pointer; color: var(--text-3);
+            font-size: 17px; line-height: 1;
+            padding: 2px; transition: color .12s;
         }
+        .toggle-btn:hover { color: var(--text); }
 
-        .password-toggle-icon:hover {
-            color: #333;
+        /* Error */
+        .error-box {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: var(--rose-soft);
+            color: var(--rose-ink);
+            padding: 11px 14px;
+            border-radius: var(--r);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 18px;
+        }
+        .error-box.show { display: flex; }
+
+        /* Submit */
+        .submit-btn {
+            width: 100%;
+            padding: 13px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--r);
+            font-size: 14.5px;
+            font-weight: 700;
+            font-family: var(--sans);
+            cursor: pointer;
+            margin-top: 6px;
+            transition: background .15s, box-shadow .15s;
+            box-shadow: 0 2px 8px rgba(45,107,218,.25);
+        }
+        .submit-btn:hover { background: var(--accent-d); box-shadow: 0 4px 14px rgba(45,107,218,.3); }
+        .submit-btn:active { transform: scale(.99); }
+
+        /* Footer note */
+        .footer-note {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-3);
+            margin-top: 22px;
+            font-weight: 500;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="logo-container">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="EBSHER Logo">
+    <div class="card">
+        <div class="brand">
+            <div class="brand-mark">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="EBSHER">
+            </div>
+            <div class="brand-name">EBSHER</div>
+            <div class="brand-sub">Admin Panel</div>
         </div>
-        <h1 class="login-title">Admin Login</h1>
-        <p class="login-subtitle">Enter your credentials to access the admin panel</p>
-        
-        <div id="errorMessage" class="error-message"></div>
-        
+
+        <div class="divider"></div>
+
+        <div id="errorMessage" class="error-box">
+            ⚠️ <span id="errorText"></span>
+        </div>
+
         <form method="POST" id="loginForm">
-            <div class="form-group">
+            <div class="field">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
             </div>
-            
-            <div class="form-group password-toggle">
+
+            <div class="field">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
-                <span class="password-toggle-icon" onclick="togglePassword()">👁️</span>
+                <div class="input-wrap">
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required class="has-toggle">
+                    <button type="button" class="toggle-btn" onclick="togglePassword()" title="Show / hide password">👁️</button>
+                </div>
             </div>
-            
-            <button type="submit" class="login-button">Sign In</button>
+
+            <button type="submit" class="submit-btn">Sign In</button>
         </form>
+
+        <div class="footer-note">EBSHER Solar Cleaning — Admin Access Only</div>
     </div>
 
     <script>
         function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const toggleIcon = document.querySelector('.password-toggle-icon');
-            
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleIcon.textContent = '🙈';
-            } else {
-                passwordInput.type = 'password';
-                toggleIcon.textContent = '👁️';
-            }
+            const input = document.getElementById('password');
+            const btn = document.querySelector('.toggle-btn');
+            if (input.type === 'password') { input.type = 'text'; btn.textContent = '🙈'; }
+            else { input.type = 'password'; btn.textContent = '👁️'; }
         }
 
-        // Show error message if present
         {% if error %}
-        document.getElementById('errorMessage').textContent = '{{ error }}';
+        document.getElementById('errorText').textContent = '{{ error }}';
         document.getElementById('errorMessage').classList.add('show');
         {% endif %}
 
-        // Handle form submission
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
-            
             if (!username || !password) {
                 e.preventDefault();
-                const errorDiv = document.getElementById('errorMessage');
-                errorDiv.textContent = 'Please enter both username and password';
-                errorDiv.classList.add('show');
-                return false;
+                document.getElementById('errorText').textContent = 'Please enter both username and password';
+                document.getElementById('errorMessage').classList.add('show');
             }
         });
     </script>
 </body>
 </html>
-
