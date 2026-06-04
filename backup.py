@@ -280,6 +280,45 @@ def sync_client_assignments():
     })
 
 
+@backup.route("/backup/diagnose", methods=["GET"])
+@_admin_required
+def diagnose_assignments():
+    """Show what account_ids are stored per Pi vs what account_numbers exist on clients."""
+    clients_col = backup.db["clients"]
+
+    pi_data = []
+    for doc in _files_col().find(
+        {"pi_id": {"$exists": True, "$ne": None}},
+        {"pi_id": 1, "pi_name": 1, "account_ids": 1},
+    ):
+        raw = doc.get("account_ids", [])
+        if isinstance(raw, str):
+            try:
+                account_ids = json.loads(raw)
+            except Exception:
+                account_ids = []
+        elif isinstance(raw, list):
+            account_ids = raw
+        else:
+            account_ids = []
+        pi_data.append({
+            "pi_id": doc.get("pi_id"),
+            "pi_name": doc.get("pi_name", "Unknown"),
+            "account_ids_in_backup": account_ids,
+        })
+
+    all_client_account_numbers = [
+        c.get("account_number") for c in clients_col.find({}, {"account_number": 1})
+        if c.get("account_number")
+    ]
+
+    return jsonify({
+        "pis": pi_data,
+        "client_account_numbers_sample": sorted(all_client_account_numbers)[:50],
+        "total_clients_with_account_number": len(all_client_account_numbers),
+    })
+
+
 @backup.route("/backup/delete/<pi_id>", methods=["DELETE", "POST"])
 @_admin_required
 def delete_backup(pi_id: str):
