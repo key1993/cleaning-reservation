@@ -1077,6 +1077,7 @@
                                 <th>FCM Token</th>
                                 <th>Account Status</th>
                                 <th>Widget Status</th>
+                                <th>Raspberry Pi</th>
                                 <th>Backups</th>
                                 <th>Firebase Actions</th>
                             </tr>
@@ -1195,6 +1196,11 @@
                                         <option value="enabled" {% if not c.get('external_widget_disabled') %}selected{% endif %}>Enabled</option>
                                         <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
                                     </select>
+                                </td>
+                                <td class="pi-assign-cell"
+                                    data-client-id="{{ c._id }}"
+                                    data-pi-id="{{ c.get('pi_id', '') }}">
+                                    <span style="color:#999;font-size:12px">Loading...</span>
                                 </td>
                                 <td>
                                     <a
@@ -1353,7 +1359,6 @@
                     </div>
                     <div class="action-buttons">
                         <button class="btn btn-primary" onclick="loadBackups()">🔄 Refresh</button>
-                        <button class="btn btn-success" onclick="downloadLatestBackup()">⬇️ Download Latest</button>
                     </div>
                 </div>
 
@@ -1376,14 +1381,15 @@
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Filename</th>
+                                <th>Pi Name</th>
+                                <th>Pi ID</th>
                                 <th>Size</th>
-                                <th>Uploaded At (UTC)</th>
+                                <th>Last Backup (UTC)</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="backups-tbody">
-                            <tr><td colspan="5" style="text-align:center;color:#888;padding:30px">Click the tab to load backups...</td></tr>
+                            <tr><td colspan="6" style="text-align:center;color:#888;padding:30px">Click the tab to load backups...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1487,6 +1493,9 @@
 
         // Initialize timeout when page loads
         resetSessionTimeout();
+
+        // Load Pi devices list for client-Pi assignment dropdowns
+        loadPisList();
 
         function showTab(tabId) {
             // Hide all tabs
@@ -2899,12 +2908,12 @@
             const tbody = document.getElementById('backups-tbody');
             const strip = document.getElementById('backup-info-strip');
             const hint  = document.getElementById('backup-setup-hint');
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#888">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#888">Loading...</td></tr>';
 
             try {
                 const res = await fetch('/backup/list');
                 if (res.status === 302 || res.redirected) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#e53e3e;padding:20px">Session expired — please log in again.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#e53e3e;padding:20px">Session expired — please log in again.</td></tr>';
                     return;
                 }
                 const data = await res.json();
@@ -2912,12 +2921,10 @@
 
                 // Status strip
                 if (backups.length > 0) {
-                    const latest = backups[0];
                     strip.innerHTML =
-                        `<strong>${backups.length}</strong> backup(s) stored &nbsp;|&nbsp; ` +
-                        `Latest: <strong>${latest.filename}</strong> &nbsp;|&nbsp; ` +
-                        `Size: <strong>${_fmtBytes(latest.size_bytes)}</strong> &nbsp;|&nbsp; ` +
-                        `Uploaded: <strong>${_fmtDate(latest.uploaded_at)}</strong>`;
+                        `<strong>${backups.length}</strong> Pi(s) registered &nbsp;|&nbsp; ` +
+                        `Most recent: <strong>${_fmtDate(backups[0].uploaded_at)}</strong> &nbsp;|&nbsp; ` +
+                        `Pi: <strong>${backups[0].pi_name || 'Unknown'}</strong>`;
                     hint.style.display = 'none';
                 } else {
                     strip.innerHTML = '<span style="color:#b45309">No backups stored yet.</span>';
@@ -2926,42 +2933,39 @@
 
                 // Table rows
                 if (backups.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;padding:30px">No backups found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;padding:30px">No backups found.</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = backups.map((b, i) => `
                     <tr>
                         <td>${i + 1}</td>
-                        <td style="font-family:monospace;font-size:13px">${b.filename}</td>
+                        <td><strong>${b.pi_name || 'Unknown Pi'}</strong></td>
+                        <td style="font-family:monospace;font-size:11px;color:#666">${b.pi_id || '—'}</td>
                         <td>${_fmtBytes(b.size_bytes)}</td>
                         <td>${_fmtDate(b.uploaded_at)}</td>
                         <td>
                             <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;margin-right:6px"
-                                onclick="downloadBackup('${b.file_id}', '${b.filename}')">⬇️ Download</button>
+                                onclick="downloadBackup('${b.pi_id}', '${b.filename}')">⬇️ Download</button>
                             <button class="btn btn-danger" style="padding:5px 12px;font-size:12px"
-                                onclick="deleteBackup('${b.file_id}', '${b.filename}')">🗑️ Delete</button>
+                                onclick="deleteBackup('${b.pi_id}', '${b.pi_name || b.filename}')">🗑️ Delete</button>
                         </td>
                     </tr>
                 `).join('');
 
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#e53e3e;padding:20px">Error loading backups: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#e53e3e;padding:20px">Error loading backups: ${err.message}</td></tr>`;
             }
         }
 
-        function downloadBackup(fileId, filename) {
-            window.location.href = '/backup/download/' + fileId;
+        function downloadBackup(piId, filename) {
+            window.location.href = '/backup/download/' + encodeURIComponent(piId);
         }
 
-        function downloadLatestBackup() {
-            window.location.href = '/backup/latest/download';
-        }
-
-        async function deleteBackup(fileId, filename) {
-            if (!confirm('Delete backup "' + filename + '"?\n\nThis cannot be undone.')) return;
+        async function deleteBackup(piId, label) {
+            if (!confirm('Delete backup for "' + label + '"?\n\nThis cannot be undone.')) return;
             try {
-                const res = await fetch('/backup/delete/' + fileId, {method: 'POST'});
+                const res = await fetch('/backup/delete/' + encodeURIComponent(piId), {method: 'POST'});
                 const data = await res.json();
                 if (data.success) {
                     showToast('Backup deleted.');
@@ -2971,6 +2975,46 @@
                 }
             } catch (err) {
                 alert('Error: ' + err.message);
+            }
+        }
+
+        // ── Pi-to-client assignment ───────────────────────────────────────────
+
+        let _pisList = [];
+
+        async function loadPisList() {
+            try {
+                const res = await fetch('/backup/pis');
+                if (!res.ok) return;
+                const data = await res.json();
+                _pisList = data.pis || [];
+                _populateClientPiDropdowns();
+            } catch (e) {}
+        }
+
+        function _populateClientPiDropdowns() {
+            document.querySelectorAll('.pi-assign-cell').forEach(cell => {
+                const clientId = cell.dataset.clientId;
+                const selectedPiId = cell.dataset.piId || '';
+                const opts = _pisList.map(p =>
+                    `<option value="${p.pi_id}"${p.pi_id === selectedPiId ? ' selected' : ''}>${p.pi_name}</option>`
+                ).join('');
+                cell.innerHTML = `<select style="padding:3px 6px;font-size:12px;border-radius:4px;border:1px solid #ccc;min-width:110px" onchange="assignClientPi('${clientId}', this.value)"><option value=""${!selectedPiId ? ' selected' : ''}>— None —</option>${opts}</select>`;
+            });
+        }
+
+        async function assignClientPi(clientId, piId) {
+            try {
+                const res = await fetch('/admin/update_client_pi/' + clientId, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({pi_id: piId}),
+                });
+                const data = await res.json();
+                if (data.success) showToast('Pi assignment saved.');
+                else alert('Error: ' + (data.error || 'Failed to save'));
+            } catch (e) {
+                alert('Error: ' + e.message);
             }
         }
     </script>

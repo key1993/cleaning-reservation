@@ -451,3 +451,18 @@ def download_client_backup(client_id):
         return response
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin.route("/admin/update_client_pi/<client_id>", methods=["POST"])
+@admin_login_required
+def update_client_pi(client_id):
+    """Assign (or unassign) a Raspberry Pi to a client record."""
+    pi_id = (request.get_json() or {}).get("pi_id", "")
+    try:
+        clients_collection.update_one(
+            {"_id": ObjectId(client_id)},
+            {"$set": {"pi_id": pi_id}},
+        )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
