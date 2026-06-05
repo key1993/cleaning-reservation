@@ -22,6 +22,10 @@ HEALTH_ALERTS_WHATSAPP = os.environ.get("HEALTH_ALERTS_WHATSAPP", "true").lower(
     "yes",
     "on",
 )
+# Number of consecutive failing polls required before a fault alert fires.
+# Prevents single transient timeouts from sending WhatsApp notifications.
+# Set HEALTH_FAULT_THRESHOLD=1 in env to revert to immediate alerting.
+FAULT_CONFIRM_THRESHOLD = int(os.environ.get("HEALTH_FAULT_THRESHOLD", "2"))
 
 _whatsapp_lock = threading.Lock()
 
@@ -51,8 +55,12 @@ def _notify_health_transitions(
 ) -> None:
     """
     WhatsApp when a light goes red (fault) or returns green (recovered).
-    Fault: new is False and previous was not False (True or None).
-    Recovery: new is True and previous was strictly False.
+
+    Fault    : new is False  AND previous was strictly True.
+               Using "old_v is True" (not "old_v is not False") prevents two false-positive sources:
+               - None  → False : first-ever poll for a client that is already down.
+               - "standby" (cast to None) → False : inverter not yet producing at dawn.
+    Recovery : new is True AND previous was strictly False.
     """
     display_name = (full_name or "Unknown").strip() or "Unknown"
     email_s = (email or "N/A").strip() or "N/A"
@@ -65,7 +73,7 @@ def _notify_health_transitions(
     )
 
     for label, icon, old_v, new_v in checks:
-        if new_v is False and old_v is not False:
+        if new_v is False and old_v is True:
             msg = (
                 f"⚠️ *Client health — fault*\n\n"
                 f"👤 *{display_name}*\n"
@@ -181,8 +189,16 @@ def _apply_health_update(
     pi_ok: Optional[bool],
     grid_ok: Optional[bool],
     solar_ok: Any,
+    pi_streak: int = 0,
+    grid_streak: int = 0,
+    solar_streak: int = 0,
 ) -> None:
-    set_doc: Dict[str, Any] = {"health_reported_at": datetime.utcnow()}
+    set_doc: Dict[str, Any] = {
+        "health_reported_at": datetime.utcnow(),
+        "health_pi_fail_streak": pi_streak,
+        "health_grid_fail_streak": grid_streak,
+        "health_solar_fail_streak": solar_streak,
+    }
     unset_doc: Dict[str, str] = {}
 
     if pi_ok is not None:
@@ -220,6 +236,10 @@ def _refresh_one_client(clients_collection: Any, client: Dict[str, Any]) -> None
     email = client.get("email") or ""
     phone = client.get("phone") or ""
 
+    pi_streak = int(client.get("health_pi_fail_streak") or 0)
+    grid_streak = int(client.get("health_grid_fail_streak") or 0)
+    solar_streak = int(client.get("health_solar_fail_streak") or 0)
+
     if not _normalize_base(ha_url) or not (ha_token or "").strip():
         clients_collection.update_one(
             {"_id": cid},
@@ -234,19 +254,38 @@ def _refresh_one_client(clients_collection: Any, client: Dict[str, Any]) -> None
         )
         return
 
-    # Sensor status endpoints require account_id query parameter.
     pi_ok, grid_ok, solar_ok = poll_client_health(ha_url, ha_token, account_id=account_id)
-    _apply_health_update(clients_collection, cid, pi_ok, grid_ok, solar_ok)
+
+    # Cascade fix: when Brain is unreachable, poll_client_health returns (False, False, False)
+    # for all three. Grid and Solar are unreachable *because* Brain is down, not genuine faults.
+    # Keep their previous stored values for notification purposes so only Brain fires an alert.
+    if pi_ok is False:
+        notify_grid = old_grid
+        notify_solar = old_solar
+    else:
+        notify_grid = grid_ok
+        notify_solar = solar_ok
+
+    # Transient fix: only commit False to DB and fire alerts after FAULT_CONFIRM_THRESHOLD
+    # consecutive failing polls. A single timeout (< threshold) is silently ignored.
+    new_pi_streak = (pi_streak + 1) if pi_ok is False else 0
+    new_grid_streak = (grid_streak + 1) if notify_grid is False else 0
+    new_solar_streak = (solar_streak + 1) if notify_solar is False else 0
+
+    effective_pi = pi_ok if (pi_ok is not False or new_pi_streak >= FAULT_CONFIRM_THRESHOLD) else old_pi
+    effective_grid = notify_grid if (notify_grid is not False or new_grid_streak >= FAULT_CONFIRM_THRESHOLD) else old_grid
+    effective_solar = notify_solar if (notify_solar is not False or new_solar_streak >= FAULT_CONFIRM_THRESHOLD) else old_solar
+
+    _apply_health_update(
+        clients_collection, cid,
+        effective_pi, effective_grid, effective_solar,
+        new_pi_streak, new_grid_streak, new_solar_streak,
+    )
     _notify_health_transitions(
-        full_name,
-        email,
-        phone,
-        old_pi,
-        pi_ok,
-        old_grid,
-        grid_ok,
-        old_solar,
-        solar_ok,
+        full_name, email, phone,
+        old_pi, effective_pi,
+        old_grid, effective_grid,
+        old_solar, effective_solar,
     )
 
 
@@ -266,6 +305,9 @@ def refresh_all_clients_health(clients_collection: Any, max_workers: int = 12) -
                 "health_pi_ok": 1,
                 "health_inverter_ok": 1,
                 "health_solar_ok": 1,
+                "health_pi_fail_streak": 1,
+                "health_grid_fail_streak": 1,
+                "health_solar_fail_streak": 1,
             },
         )
     )
