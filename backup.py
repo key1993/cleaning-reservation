@@ -105,14 +105,21 @@ def upload_backup():
 
         fs = _fs()
 
-        # Delete previous backup for this Pi using direct collection query
-        # (avoids gridfs.GridFS.find() filter issues across PyMongo versions)
+        # Delete previous backup(s) for this Pi.
+        # Match by pi_id first, then also by pi_name so that a Pi which
+        # generates a new UUID on each run doesn't accumulate stale entries.
+        ids_to_delete = set()
         if pi_id:
-            for old in list(_files_col().find({"pi_id": pi_id}, {"_id": 1})):
-                try:
-                    fs.delete(old["_id"])
-                except Exception:
-                    pass
+            for old in _files_col().find({"pi_id": pi_id}, {"_id": 1}):
+                ids_to_delete.add(old["_id"])
+        if pi_name and pi_name != "Unknown Pi":
+            for old in _files_col().find({"pi_name": pi_name}, {"_id": 1}):
+                ids_to_delete.add(old["_id"])
+        for oid in ids_to_delete:
+            try:
+                fs.delete(oid)
+            except Exception:
+                pass
 
         # Parse account_ids and account_names — stored in GridFS metadata so sync
         # can re-run assignment later and the admin UI can display account names.
@@ -181,17 +188,20 @@ def upload_backup():
 @backup.route("/backup/list", methods=["GET"])
 @_admin_required
 def list_backups():
-    """Return one backup entry per registered Pi, newest first."""
-    entries = []
+    """Return one backup entry per registered Pi (deduplicated by pi_name), newest first."""
+    seen: dict = {}
     for doc in _files_col().find({}).sort("uploadDate", -1):
-        entries.append({
-            "file_id": str(doc["_id"]),
-            "filename": doc.get("filename", ""),
-            "size_bytes": doc.get("length", 0),
-            "uploaded_at": doc.get("uploadDate", datetime.utcnow()).isoformat(),
-            "pi_id": doc.get("pi_id"),
-            "pi_name": doc.get("pi_name", "Unknown Pi"),
-        })
+        name = doc.get("pi_name", "Unknown Pi")
+        if name not in seen:
+            seen[name] = {
+                "file_id": str(doc["_id"]),
+                "filename": doc.get("filename", ""),
+                "size_bytes": doc.get("length", 0),
+                "uploaded_at": doc.get("uploadDate", datetime.utcnow()).isoformat(),
+                "pi_id": doc.get("pi_id"),
+                "pi_name": name,
+            }
+    entries = list(seen.values())
     return jsonify({"backups": entries, "count": len(entries)})
 
 
