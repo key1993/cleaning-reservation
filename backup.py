@@ -149,24 +149,41 @@ def upload_backup():
             account_names=account_names,
         )
 
-        # Auto-assign clients to this Pi based on account IDs.
+        # Auto-sync ALL Pis from stored GridFS metadata so the admin Clients
+        # tab always reflects the latest assignments without any manual click.
+        clients_col = backup.db["clients"]
         clients_assigned = 0
         clients_cleared = 0
 
-        if pi_id and account_ids:
-            clients_col = backup.db["clients"]
-            # Assign this Pi to every client whose account_number is in the list
+        for doc in _files_col().find(
+            {"pi_id": {"$exists": True, "$ne": None}},
+            {"pi_id": 1, "account_ids": 1},
+        ):
+            doc_pi_id = doc.get("pi_id")
+            raw = doc.get("account_ids", [])
+            if isinstance(raw, str):
+                try:
+                    doc_account_ids = json.loads(raw)
+                except Exception:
+                    doc_account_ids = []
+            elif isinstance(raw, list):
+                doc_account_ids = raw
+            else:
+                doc_account_ids = []
+
+            if not doc_pi_id or not doc_account_ids:
+                continue
+
             r = clients_col.update_many(
-                {"account_number": {"$in": account_ids}},
-                {"$set": {"pi_id": pi_id}},
+                {"account_number": {"$in": doc_account_ids}},
+                {"$set": {"pi_id": doc_pi_id}},
             )
-            clients_assigned = r.modified_count
-            # Remove Pi assignment from clients that were on this Pi but are no longer
+            clients_assigned += r.modified_count
             r = clients_col.update_many(
-                {"pi_id": pi_id, "account_number": {"$nin": account_ids}},
+                {"pi_id": doc_pi_id, "account_number": {"$nin": doc_account_ids}},
                 {"$set": {"pi_id": None}},
             )
-            clients_cleared = r.modified_count
+            clients_cleared += r.modified_count
 
         return jsonify({
             "success": True,
@@ -197,7 +214,7 @@ def list_backups():
                 "file_id": str(doc["_id"]),
                 "filename": doc.get("filename", ""),
                 "size_bytes": doc.get("length", 0),
-                "uploaded_at": doc.get("uploadDate", datetime.utcnow()).isoformat(),
+                "uploaded_at": doc.get("uploadDate", datetime.utcnow()).isoformat() + "Z",
                 "pi_id": doc.get("pi_id"),
                 "pi_name": name,
             }
@@ -225,7 +242,7 @@ def list_pis():
             seen[pi_name] = {
                 "pi_id": doc.get("pi_id"),
                 "pi_name": pi_name,
-                "last_backup": doc.get("uploadDate", datetime.utcnow()).isoformat(),
+                "last_backup": doc.get("uploadDate", datetime.utcnow()).isoformat() + "Z",
                 "account_ids": list(raw_ids),
                 "account_names": dict(raw_names),
             }
