@@ -1946,19 +1946,12 @@ def register_client():
     else:
         data["firebase_uid"] = incoming_account_uid or None
 
-    pl = _preferred_language_from_request(data)
-    if pl:
-        data["preferred_language"] = pl
-    else:
-        data.pop("preferred_language", None)
-    data.pop("preferredLanguage", None)
-
-    # Deduplicate by account UID: update existing client instead of inserting a new one.
-    # Keep the original signup_date from existing client.
+    # Deduplicate by account UID: update existing client instead of inserting a new one
     uid_for_match = data.get("firebase_uid")
     if uid_for_match:
         existing_client = clients_collection.find_one({"firebase_uid": uid_for_match})
         if existing_client:
+            # Keep existing signup date by default; still refresh key profile fields
             update_fields = dict(data)
             if existing_client.get("signup_date"):
                 update_fields["signup_date"] = existing_client.get("signup_date")
@@ -1972,6 +1965,13 @@ def register_client():
                 "client_id": str(existing_client["_id"]),
                 "deduplicated": True,
             }), 200
+
+    pl = _preferred_language_from_request(data)
+    if pl:
+        data["preferred_language"] = pl
+    else:
+        data.pop("preferred_language", None)
+    data.pop("preferredLanguage", None)
 
     clients_collection.insert_one(data)
 

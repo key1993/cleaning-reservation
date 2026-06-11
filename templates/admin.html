@@ -788,7 +788,7 @@
                                     <th>Pi Name</th>
                                     <th>Pi ID</th>
                                     <th>Size</th>
-                                    <th>Last Backup (UTC)</th>
+                                    <th>Last Backup (Jordan)</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -1434,7 +1434,7 @@
 
     // ── Pi Backups ──
     function _fmtBytes(b) { if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(2)+' MB'; }
-    function _fmtDate(iso) { if(!iso) return '—'; return new Date(iso).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}); }
+    function _fmtDate(iso) { if(!iso) return '—'; return new Date(iso).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Amman'}); }
 
     async function loadBackups() {
         const tbody = document.getElementById('backups-tbody');
