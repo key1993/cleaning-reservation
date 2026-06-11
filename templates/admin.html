@@ -627,7 +627,7 @@
                                             <option value="disabled" {% if c.get('external_widget_disabled') %}selected{% endif %}>Disabled</option>
                                         </select>
                                     </td>
-                                    <td class="pi-assign-cell" data-client-id="{{ c._id }}" data-pi-id="{{ c.get('pi_id', '') }}">
+                                    <td class="pi-assign-cell" data-client-id="{{ c._id }}" data-pi-id="{{ c.get('pi_id', '') }}" data-account-number="{{ c.get('account_number', '') }}">
                                         <span style="color:var(--text-3);font-size:12px">Loading…</span>
                                     </td>
                                     <td>
@@ -1488,7 +1488,13 @@
     }
     function _populateClientPiDropdowns() {
         document.querySelectorAll('.pi-assign-cell').forEach(cell => {
-            const pi = _pisList.find(p => p.pi_id === (cell.dataset.piId || ''));
+            const accNum = cell.dataset.accountNumber || '';
+            const piId   = cell.dataset.piId || '';
+            // Match by account_number (stable) first, fall back to pi_id
+            const pi = _pisList.find(p =>
+                (accNum && Array.isArray(p.account_ids) && p.account_ids.includes(accNum)) ||
+                (piId && p.pi_id === piId)
+            );
             if (pi) {
                 cell.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--blue-soft);color:var(--blue-ink);padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700">☁ ${pi.pi_name}</span>`;
             } else {

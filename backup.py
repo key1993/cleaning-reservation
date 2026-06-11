@@ -208,23 +208,34 @@ def list_backups():
 @backup.route("/backup/pis", methods=["GET"])
 @_admin_required
 def list_pis():
-    """Return all registered Pi devices (for client-Pi assignment dropdowns)."""
-    seen = {}
+    """Return one entry per Pi (deduplicated by pi_name, merging account_ids across duplicates)."""
+    seen: dict = {}
     for doc in _files_col().find(
         {"pi_id": {"$exists": True, "$ne": None}},
         {"pi_id": 1, "pi_name": 1, "uploadDate": 1, "account_ids": 1, "account_names": 1},
     ).sort("uploadDate", -1):
-        pi_id = doc.get("pi_id")
-        if pi_id and pi_id not in seen:
-            raw_ids = doc.get("account_ids", [])
-            raw_names = doc.get("account_names", {})
-            seen[pi_id] = {
-                "pi_id": pi_id,
-                "pi_name": doc.get("pi_name", "Unknown Pi"),
+        pi_name = doc.get("pi_name", "Unknown Pi")
+        raw_ids = doc.get("account_ids", [])
+        raw_names = doc.get("account_names", {})
+        if not isinstance(raw_ids, list):
+            raw_ids = []
+        if not isinstance(raw_names, dict):
+            raw_names = {}
+        if pi_name not in seen:
+            seen[pi_name] = {
+                "pi_id": doc.get("pi_id"),
+                "pi_name": pi_name,
                 "last_backup": doc.get("uploadDate", datetime.utcnow()).isoformat(),
-                "account_ids": raw_ids if isinstance(raw_ids, list) else [],
-                "account_names": raw_names if isinstance(raw_names, dict) else {},
+                "account_ids": list(raw_ids),
+                "account_names": dict(raw_names),
             }
+        else:
+            # Merge account_ids/names from older duplicates so no account is lost
+            existing = seen[pi_name]
+            for aid in raw_ids:
+                if aid not in existing["account_ids"]:
+                    existing["account_ids"].append(aid)
+            existing["account_names"].update(raw_names)
     return jsonify({"pis": list(seen.values())})
 
 
