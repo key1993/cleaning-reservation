@@ -1,6 +1,7 @@
 """
 Poll each client's Home Assistant (Brain URL + token) for connectivity and entity states.
-Grid/Inverter sensors are green when state is online/active/normal.
+Grid/Solar: driven by input_boolean.grid_check / input_boolean.solar_check.
+ON = problem (red). OFF = OK (green).
 """
 import os
 import threading
@@ -12,10 +13,8 @@ import requests
 
 DEFAULT_TIMEOUT = float(os.environ.get("HA_HEALTH_TIMEOUT", "8"))
 VERIFY_SSL = os.environ.get("HA_HEALTH_VERIFY_SSL", "true").lower() in ("1", "true", "yes")
-SG_PLANT_STATUS_ENTITY = os.environ.get("HA_SG_PLANT_STATUS_ENTITY", "sensor.sg_plant_status")
-SMARTLIFE_STATUS_ENTITY = os.environ.get("HA_SMARTLIFE_STATUS_ENTITY", "sensor.smartlife_device_status")
-IS_NIGHT_TIME_ENTITY = os.environ.get("HA_IS_NIGHT_TIME_ENTITY", "input_boolean.is_night_time")
-HEALTHY_SENSOR_STATES = {"online", "active", "normal"}
+GRID_CHECK_ENTITY = os.environ.get("GRID_CHECK_ENTITY", "input_boolean.grid_check")
+SOLAR_CHECK_ENTITY = os.environ.get("SOLAR_CHECK_ENTITY", "input_boolean.solar_check")
 HEALTH_ALERTS_WHATSAPP = os.environ.get("HEALTH_ALERTS_WHATSAPP", "true").lower() in (
     "1",
     "true",
@@ -135,17 +134,14 @@ def poll_client_health(
             timeout=timeout,
             verify=VERIFY_SSL,
         )
-        if r.status_code == 200:
-            pi_ok = True
-        else:
-            pi_ok = False
+        pi_ok = r.status_code == 200
     except requests.RequestException:
         pi_ok = False
 
     if not pi_ok:
         return (False, False, False)
 
-    def entity_state(entity_id: str) -> Optional[str]:
+    def boolean_state(entity_id: str) -> Optional[str]:
         if not account_id:
             return None
         try:
@@ -158,29 +154,18 @@ def poll_client_health(
             )
             if r.status_code != 200:
                 return None
-            data = r.json()
-            return str(data.get("state") or "").strip().lower()
+            return str(r.json().get("state") or "").strip().lower()
         except (requests.RequestException, ValueError, TypeError):
             return None
 
-    smartlife_state = entity_state(SMARTLIFE_STATUS_ENTITY)
-    plant_state = entity_state(SG_PLANT_STATUS_ENTITY)
-    is_night_state = entity_state(IS_NIGHT_TIME_ENTITY)
+    # ON = problem detected → red (False). OFF = all good → green (True).
+    grid_state = boolean_state(GRID_CHECK_ENTITY)
+    solar_state = boolean_state(SOLAR_CHECK_ENTITY)
 
-    # Middle (⚡) = Grid: derived from SmartLife status.
-    grid_ok = bool(smartlife_state in HEALTHY_SENSOR_STATES)
+    grid_ok: Optional[bool] = (False if grid_state == "on" else True) if grid_state is not None else None
+    solar_ok: Optional[bool] = (False if solar_state == "on" else True) if solar_state is not None else None
 
-    inverter_healthy = bool(plant_state in HEALTHY_SENSOR_STATES)
-    is_night = bool(is_night_state in {"on", "true", "1", "active", "yes"})
-    if inverter_healthy:
-        inverter_ok: Any = True
-    elif is_night:
-        # Avoid false positive notifications at night when inverter can be off/unavailable.
-        inverter_ok = "standby"
-    else:
-        inverter_ok = False
-
-    return (pi_ok, grid_ok, inverter_ok)
+    return (pi_ok, grid_ok, solar_ok)
 
 
 def _apply_health_update(
