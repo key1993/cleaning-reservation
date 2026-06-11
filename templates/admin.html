@@ -1483,13 +1483,15 @@
         try {
             const res = await fetch('/backup/pis'); if (!res.ok) return;
             const data = await res.json(); _pisList = data.pis || [];
+            console.log('[Pi Debug] pis from server:', JSON.stringify(_pisList, null, 2));
             _populateClientPiDropdowns();
-        } catch(e) {}
+        } catch(e) { console.error('[Pi Debug] loadPisList error:', e); }
     }
     function _populateClientPiDropdowns() {
         document.querySelectorAll('.pi-assign-cell').forEach(cell => {
             const accNum = cell.dataset.accountNumber || '';
             const piId   = cell.dataset.piId || '';
+            console.log('[Pi Debug] client cell — accNum:', accNum, '| piId:', piId);
             // Match by account_number (stable) first, fall back to pi_id
             const pi = _pisList.find(p =>
                 (accNum && Array.isArray(p.account_ids) && p.account_ids.includes(accNum)) ||
