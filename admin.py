@@ -94,68 +94,11 @@ def admin_dashboard():
         
         # Refresh clients list after auto-linking
         clients = list(clients_collection.find())
-        
-        # Check payment status and auto-disable Firebase/widget if overdue
-        today = datetime.now()
-        today_str = today.strftime("%Y-%m-%d")
-        for client in clients:
-            next_payment = client.get("next_payment_date")
-            if next_payment:
-                try:
-                    payment_date = datetime.strptime(next_payment, "%Y-%m-%d")
-                    if payment_date < today:
-                        # Payment is overdue - check if payment was confirmed
-                        # Check if there's a payment confirmation (we'll check if payment_date was updated recently)
-                        # For now, if overdue, disable Firebase and widget
-                        firebase_uid = client.get("firebase_uid")
-                        if firebase_uid:
-                            from firebase_service import disable_firebase_user
-                            # Disable Firebase account if not already disabled
-                            if not client.get("account_disabled", False):
-                                if disable_firebase_user(firebase_uid):
-                                    clients_collection.update_one(
-                                        {"_id": client["_id"]},
-                                        {"$set": {
-                                            "account_disabled": True,
-                                            "account_disabled_date": today_str
-                                        }}
-                                    )
-                                    print(f"🔒 Auto-disabled Firebase for overdue client: {client.get('full_name')}")
-                            
-                            # Disable widget if not already disabled
-                            if not client.get("external_widget_disabled", False):
-                                clients_collection.update_one(
-                                    {"_id": client["_id"]},
-                                    {"$set": {"external_widget_disabled": True}}
-                                )
-                                # Send disable request to external widget
-                                try:
-                                    import requests
-                                    ha_url = client.get("ha_url", "").rstrip("/")
-                                    ha_token = client.get("ha_token", "")
-                                    if ha_url and ha_token:
-                                        widget_url = f"{ha_url}/api/widget/disable"
-                                        widget_payload = {
-                                            "client_id": str(client["_id"]),
-                                            "client_name": client.get("full_name", "Unknown"),
-                                            "disabled": True,
-                                            "ha_token": ha_token,
-                                            "timestamp": datetime.utcnow().isoformat()
-                                        }
-                                        requests.post(
-                                            widget_url,
-                                            json=widget_payload,
-                                            headers={"Content-Type": "application/json"},
-                                            timeout=10
-                                        )
-                                        print(f"🔒 Auto-disabled widget for overdue client: {client.get('full_name')}")
-                                except Exception as widget_error:
-                                    print(f"⚠️ Could not disable widget for {client.get('full_name')}: {widget_error}")
-                except Exception as e:
-                    print(f"⚠️ Error checking payment status for {client.get('full_name')}: {e}")
-        
-        # Refresh clients list again after auto-disable
-        clients = list(clients_collection.find())
+
+        # Note: overdue-payment auto-disable is handled by the daily scheduled job
+        # (scheduled_payment_reminders -> process_payment_reminders in routes.py),
+        # not here, so that manually re-enabling an account from this dashboard sticks
+        # instead of being immediately reverted on the next page load.
 
         # Poll each client's Brain (HA) for Pi reachability + grid/solar input_booleans
         try:
