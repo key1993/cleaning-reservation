@@ -7,6 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         /* ═══════════════════════════════════════════════════════════
            EBSHER Admin — Notion-soft × Solar design system
@@ -359,6 +361,10 @@
             </button>
             <button class="nav-item tab-btn" onclick="showTab('pi_backups'); loadBackups()">
                 ☁️ <span class="nav-label">Pi Backups</span>
+            </button>
+            <button class="nav-item tab-btn" onclick="showTab('weather_stations'); initStationsMap()">
+                🌦️ <span class="nav-label">Weather Stations</span>
+                <span class="nav-count">{{ weather_stations|length }}</span>
             </button>
         </nav>
 
@@ -801,9 +807,115 @@
                 </div>
             </div>
 
+            <!-- ═══════════════ TAB 5: WEATHER STATIONS ═══════════════ -->
+            <div id="weather_stations" class="tab-content">
+                <div class="card">
+                    <div class="card-bar">
+                        <div class="card-bar-left">
+                            <div class="card-title">🌦️ Weather Stations</div>
+                            <span class="card-count">{{ weather_stations|length }} total</span>
+                        </div>
+                        <div class="card-bar-right">
+                            <button class="btn btn-primary btn-sm" onclick="openStationDialog()">➕ Add Station</button>
+                        </div>
+                    </div>
+                    <div style="padding:14px 18px 4px">
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-2);margin-bottom:10px">
+                            <span>🛰️ Station — click to open its dashboard</span>
+                            <span>📍 Client — click to open their account page</span>
+                            <span><span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--green);margin-right:3px"></span>Online</span>
+                            <span><span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--rose);margin-right:3px"></span>Offline</span>
+                            <span><span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--gray);margin-right:3px"></span>Unknown</span>
+                            <span>⭕ Dashed circle = 30 km data-sharing radius</span>
+                        </div>
+                    </div>
+                    <div style="padding:0 18px 18px">
+                        <div id="stationsMap" style="height:600px;border-radius:var(--r);overflow:hidden;border:1px solid var(--border-2)"></div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:16px">
+                    <div class="card-bar">
+                        <div class="card-bar-left">
+                            <div class="card-title">Manage Stations</div>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Name</th>
+                                    <th>Coordinates</th>
+                                    <th>Main URL</th>
+                                    <th>GHI Sensor</th>
+                                    <th>Arabia Weather</th>
+                                    <th>Last Checked</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in weather_stations %}
+                                <tr id="station-row-{{ s._id }}">
+                                    <td>{{ loop.index }}</td>
+                                    <td><strong>{{ s.name }}</strong></td>
+                                    <td style="font-family:var(--mono);font-size:12px">{{ "%.5f"|format(s.latitude) }}, {{ "%.5f"|format(s.longitude) }}</td>
+                                    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">
+                                        <a href="{{ s.url }}" target="_blank" rel="noopener" style="color:var(--accent-d);font-weight:600;font-size:12.5px">{{ s.url }}</a>
+                                    </td>
+                                    <td>
+                                        <span class="hchip {% if s.get('health_ghi_ok') == True %}hchip-green{% elif s.get('health_ghi_ok') == False %}hchip-rose{% else %}hchip-gray{% endif %}" title="{{ s.get('health_ghi_error') or '' }}">
+                                            <span class="hchip-dot"></span>{{ 'Online' if s.get('health_ghi_ok') == True else ('Offline' if s.get('health_ghi_ok') == False else 'Unknown') }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="hchip {% if s.get('health_weather_ok') == True %}hchip-green{% elif s.get('health_weather_ok') == False %}hchip-rose{% else %}hchip-gray{% endif %}" title="{{ s.get('health_weather_error') or '' }}">
+                                            <span class="hchip-dot"></span>{{ 'Online' if s.get('health_weather_ok') == True else ('Offline' if s.get('health_weather_ok') == False else 'Unknown') }}
+                                        </span>
+                                    </td>
+                                    <td style="font-size:11.5px;color:var(--text-3)">{{ s.get('health_checked_at').strftime('%Y-%m-%d %H:%M') if s.get('health_checked_at') else '—' }}</td>
+                                    <td style="white-space:nowrap">
+                                        <button class="btn btn-sm btn-secondary" onclick="openStationDialog('{{ s._id }}', {{ s.name|tojson }}, {{ s.latitude }}, {{ s.longitude }}, {{ s.url|tojson }})">✏️</button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteStation('{{ s._id }}', {{ s.name|tojson }})">🗑️</button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:32px">No weather stations registered yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </div><!-- /content -->
     </main>
 </div><!-- /shell -->
+
+<!-- Weather Station Modal -->
+<div id="stationModal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:460px">
+        <div class="modal-header">
+            <div class="modal-title" id="stationModalTitle">➕ Add Weather Station</div>
+            <span class="close" onclick="closeStationDialog()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="stationId">
+            <label for="stationName">Name</label>
+            <input type="text" id="stationName" placeholder="e.g. Main Sensor — Irbid">
+            <label for="stationLat">Latitude</label>
+            <input type="text" id="stationLat" placeholder="31.9539">
+            <label for="stationLon">Longitude</label>
+            <input type="text" id="stationLon" placeholder="35.9106">
+            <label for="stationUrl">Main URL</label>
+            <input type="text" id="stationUrl" placeholder="https://your-station-domain.example.com">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeStationDialog()">Cancel</button>
+            <button class="btn btn-primary" id="saveStationBtn" onclick="saveStation()">💾 Save Station</button>
+        </div>
+    </div>
+</div>
 
 <!-- ═══════════════════════════════════════ MODALS ═══════════════════════════════════════ -->
 
@@ -918,7 +1030,187 @@
         clients:       { t: 'Clients',       s: 'Registered customers, systems and subscriptions' },
         cleaning_crew: { t: 'Cleaning Crew', s: 'Crew members who perform the cleanings' },
         pi_backups:    { t: 'Pi Backups',    s: 'Encrypted platform snapshots pushed from Pi devices' },
+        weather_stations: { t: 'Weather Stations', s: 'GHI sensor locations, live connectivity, and client coverage' },
     };
+
+    // ── Weather Stations map ──
+    // Minimal server-rendered fields only (raw Mongo docs aren't JSON-safe: ObjectId/datetime).
+    const _weatherStations = [
+        {% for s in weather_stations %}
+        {
+            id: {{ s._id|tojson }},
+            name: {{ s.name|tojson }},
+            latitude: {{ s.latitude|tojson }},
+            longitude: {{ s.longitude|tojson }},
+            url: {{ s.url|tojson }},
+            ghiOk: {{ s.get('health_ghi_ok')|tojson }},
+            weatherOk: {{ s.get('health_weather_ok')|tojson }}
+        },
+        {% endfor %}
+    ];
+
+    const _mapClients = [
+        {% for c in clients %}
+        {% if c.get('location') %}
+        {
+            name: {{ (c.full_name or 'Unnamed')|tojson }},
+            location: {{ c.location|tojson }},
+            haUrl: {{ (c.ha_url or '')|tojson }},
+            accountId: {{ (c.get('account_number') or c.get('account_id') or '')|tojson }},
+            gridOk: {{ c.get('health_inverter_ok')|tojson }},
+            solarOk: {{ c.get('health_solar_ok')|tojson }}
+        },
+        {% endif %}
+        {% endfor %}
+    ];
+
+    const STATION_RADIUS_KM = 30; // CACHE_DISTANCE_THRESHOLD_KM, Soiling_losses_Version3.py
+
+    function _haversineKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function _parseLatLon(location) {
+        const parts = (location || '').split(',');
+        if (parts.length !== 2) return null;
+        const lat = parseFloat(parts[0]), lon = parseFloat(parts[1]);
+        if (!isFinite(lat) || !isFinite(lon)) return null;
+        return [lat, lon];
+    }
+
+    function _statusColor(ok) {
+        return ok === true ? '#2BA15F' : ok === false ? '#DD5440' : '#8C887D';
+    }
+    function _statusWord(ok, onLabel, offLabel) {
+        return ok === true ? onLabel : ok === false ? offLabel : 'Unknown';
+    }
+
+    function _stationIcon(st) {
+        const c1 = _statusColor(st.ghiOk), c2 = _statusColor(st.weatherOk);
+        return L.divIcon({
+            className: 'station-marker',
+            html: `<div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">
+                     <div style="font-size:24px;line-height:1">🛰️</div>
+                     <div style="display:flex;gap:3px;margin-top:2px">
+                       <span style="width:9px;height:9px;border-radius:999px;background:${c1};border:1.5px solid #fff"></span>
+                       <span style="width:9px;height:9px;border-radius:999px;background:${c2};border:1.5px solid #fff"></span>
+                     </div>
+                   </div>`,
+            iconSize: [40, 38], iconAnchor: [20, 34]
+        });
+    }
+
+    function _clientIcon(c) {
+        const c1 = _statusColor(c.gridOk), c2 = _statusColor(c.solarOk);
+        return L.divIcon({
+            className: 'client-marker',
+            html: `<div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">
+                     <div style="font-size:20px;line-height:1">📍</div>
+                     <div style="display:flex;gap:3px;margin-top:1px">
+                       <span style="width:8px;height:8px;border-radius:999px;background:${c1};border:1.5px solid #fff"></span>
+                       <span style="width:8px;height:8px;border-radius:999px;background:${c2};border:1.5px solid #fff"></span>
+                     </div>
+                   </div>`,
+            iconSize: [34, 32], iconAnchor: [17, 30]
+        });
+    }
+
+    let _stationsMapInstance = null;
+
+    function initStationsMap() {
+        if (_stationsMapInstance) { setTimeout(() => _stationsMapInstance.invalidateSize(), 100); return; }
+        const mapEl = document.getElementById('stationsMap');
+        if (!mapEl || typeof L === 'undefined') return;
+
+        _stationsMapInstance = L.map(mapEl).setView([31.9539, 35.9106], 9); // Amman fallback center
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(_stationsMapInstance);
+
+        const bounds = [];
+
+        _weatherStations.forEach(st => {
+            if (typeof st.latitude !== 'number' || typeof st.longitude !== 'number') return;
+            const nearby = _mapClients.filter(c => {
+                const p = _parseLatLon(c.location);
+                return p && _haversineKm(st.latitude, st.longitude, p[0], p[1]) <= STATION_RADIUS_KM;
+            }).length;
+            const marker = L.marker([st.latitude, st.longitude], {
+                icon: _stationIcon(st),
+                title: `${st.name} — GHI: ${_statusWord(st.ghiOk, 'Online', 'Offline')}, Arabia Weather: ${_statusWord(st.weatherOk, 'Online', 'Offline')} — ${nearby} client(s) within ${STATION_RADIUS_KM}km — click to open dashboard`
+            }).addTo(_stationsMapInstance);
+            if (st.url) marker.on('click', () => window.open(st.url, '_blank', 'noopener'));
+            L.circle([st.latitude, st.longitude], {
+                radius: STATION_RADIUS_KM * 1000,
+                color: '#2D6BDA', weight: 1.5, dashArray: '6,6', fillColor: '#2D6BDA', fillOpacity: 0.06
+            }).addTo(_stationsMapInstance);
+            bounds.push([st.latitude, st.longitude]);
+        });
+
+        _mapClients.forEach(c => {
+            const p = _parseLatLon(c.location);
+            if (!p) return;
+            const accountUrl = c.haUrl
+                ? (c.accountId ? `${c.haUrl.replace(/\/+$/, '')}/account/${encodeURIComponent(c.accountId)}` : c.haUrl)
+                : '';
+            const marker = L.marker(p, {
+                icon: _clientIcon(c),
+                title: `${c.name} — Grid: ${_statusWord(c.gridOk, 'OK', 'Down')}, Solar: ${_statusWord(c.solarOk, 'OK', 'Down')}${accountUrl ? ' — click to open account page' : ' — no Brain URL on file'}`
+            }).addTo(_stationsMapInstance);
+            if (accountUrl) marker.on('click', () => window.open(accountUrl, '_blank', 'noopener'));
+            bounds.push(p);
+        });
+
+        if (bounds.length) {
+            _stationsMapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+        }
+        setTimeout(() => _stationsMapInstance.invalidateSize(), 150);
+    }
+
+    // ── Weather station add/edit/delete ──
+    function openStationDialog(id, name, latitude, longitude, url) {
+        document.getElementById('stationModalTitle').textContent = id ? '✏️ Edit Weather Station' : '➕ Add Weather Station';
+        document.getElementById('stationId').value = id || '';
+        document.getElementById('stationName').value = name || '';
+        document.getElementById('stationLat').value = (latitude === undefined || latitude === null) ? '' : latitude;
+        document.getElementById('stationLon').value = (longitude === undefined || longitude === null) ? '' : longitude;
+        document.getElementById('stationUrl').value = url || '';
+        document.getElementById('stationModal').style.display = 'block';
+    }
+    function closeStationDialog() {
+        document.getElementById('stationModal').style.display = 'none';
+    }
+    function saveStation() {
+        const id = document.getElementById('stationId').value;
+        const name = document.getElementById('stationName').value.trim();
+        const latitude = document.getElementById('stationLat').value.trim();
+        const longitude = document.getElementById('stationLon').value.trim();
+        const url = document.getElementById('stationUrl').value.trim();
+        if (!name || !latitude || !longitude || !url) { alert('Please fill in name, latitude, longitude and URL.'); return; }
+        const endpoint = id ? `/admin/weather_stations/${id}/update` : '/admin/weather_stations/add';
+        const btn = document.getElementById('saveStationBtn');
+        const orig = btn.innerHTML; btn.innerHTML = '⏳ Saving…'; btn.disabled = true;
+        fetch(endpoint, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, latitude, longitude, url })
+        }).then(r => r.json()).then(d => {
+            if (d.success) { location.reload(); }
+            else { alert('❌ ' + (d.error || 'Failed to save station')); btn.innerHTML = orig; btn.disabled = false; }
+        }).catch(e => { alert('❌ Error: ' + e.message); btn.innerHTML = orig; btn.disabled = false; });
+    }
+    function deleteStation(id, name) {
+        if (!confirm(`Delete weather station "${name}"? This cannot be undone.`)) return;
+        fetch(`/admin/weather_stations/${id}/delete`, { method: 'POST' })
+            .then(r => r.json()).then(d => {
+                if (d.success) location.reload();
+                else alert('❌ ' + (d.error || 'Failed to delete station'));
+            }).catch(e => alert('❌ Error: ' + e.message));
+    }
 
     function showTab(tabId) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));

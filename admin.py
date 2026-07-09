@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, session, redirect, request, url_for, jsonify, make_response
-from db import reservations_collection, clients_collection, cleaning_crew_collection
+from db import reservations_collection, clients_collection, cleaning_crew_collection, weather_stations_collection
 from bson import ObjectId
 from functools import wraps
 from datetime import datetime, timedelta
@@ -109,11 +109,29 @@ def admin_dashboard():
         except Exception as health_err:
             print(f"⚠️ Client health poll failed: {health_err}")
 
+        # Weather stations: fetch + poll live GHI-sensor / Arabia-Weather connectivity
+        weather_stations = list(weather_stations_collection.find())
+        try:
+            from weather_station_health import refresh_all_stations_health
+
+            refresh_all_stations_health(weather_stations_collection)
+            weather_stations = list(weather_stations_collection.find())
+        except Exception as station_health_err:
+            print(f"⚠️ Weather station health poll failed: {station_health_err}")
+
         for r in reservations:
             r["_id"] = str(r["_id"])
         for crew in cleaning_crew:
             crew["_id"] = str(crew["_id"])
-        return render_template("admin.html", reservations=reservations, clients=clients, cleaning_crew=cleaning_crew)
+        for s in weather_stations:
+            s["_id"] = str(s["_id"])
+        return render_template(
+            "admin.html",
+            reservations=reservations,
+            clients=clients,
+            cleaning_crew=cleaning_crew,
+            weather_stations=weather_stations,
+        )
     except Exception as e:
         print(f"Error in admin dashboard: {e}")
         return render_template("error.html", error_message=f"Error loading admin dashboard: {str(e)}"), 500
@@ -406,6 +424,71 @@ def update_client_pi(client_id):
             {"_id": ObjectId(client_id)},
             {"$set": {"pi_id": pi_id}},
         )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _weather_station_fields_from_request(data):
+    """Validate + coerce name/latitude/longitude/url from a station add/update payload."""
+    name = (data.get("name") or "").strip()
+    url = (data.get("url") or "").strip()
+    lat_raw = data.get("latitude")
+    lon_raw = data.get("longitude")
+    if not name or not url or lat_raw in (None, "") or lon_raw in (None, ""):
+        return None, "name, latitude, longitude and url are required"
+    try:
+        latitude = float(lat_raw)
+        longitude = float(lon_raw)
+    except (TypeError, ValueError):
+        return None, "latitude/longitude must be numeric"
+    if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+        return None, "latitude/longitude out of range"
+    return {"name": name, "latitude": latitude, "longitude": longitude, "url": url}, None
+
+
+@admin.route("/admin/weather_stations/add", methods=["POST"])
+@admin_login_required
+def add_weather_station():
+    """Register a new weather station (GHI sensor + Arabia Weather location)."""
+    try:
+        data = request.get_json(silent=True) or request.form
+        fields, error = _weather_station_fields_from_request(data)
+        if error:
+            return jsonify({"success": False, "error": error}), 400
+        fields["created_at"] = datetime.utcnow()
+        result = weather_stations_collection.insert_one(fields)
+        return jsonify({"success": True, "id": str(result.inserted_id)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin.route("/admin/weather_stations/<station_id>/update", methods=["POST"])
+@admin_login_required
+def update_weather_station(station_id):
+    """Edit an existing weather station's name/coordinates/URL."""
+    try:
+        data = request.get_json(silent=True) or request.form
+        fields, error = _weather_station_fields_from_request(data)
+        if error:
+            return jsonify({"success": False, "error": error}), 400
+        result = weather_stations_collection.update_one(
+            {"_id": ObjectId(station_id)}, {"$set": fields}
+        )
+        if result.matched_count == 0:
+            return jsonify({"success": False, "error": "Station not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin.route("/admin/weather_stations/<station_id>/delete", methods=["POST"])
+@admin_login_required
+def delete_weather_station(station_id):
+    try:
+        result = weather_stations_collection.delete_one({"_id": ObjectId(station_id)})
+        if result.deleted_count == 0:
+            return jsonify({"success": False, "error": "Station not found"}), 404
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
