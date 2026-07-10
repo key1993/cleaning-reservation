@@ -198,6 +198,18 @@
         .hchip-amber { background: var(--amber-soft); color: var(--amber-ink); }
         .hchip-gray  { background: var(--gray-soft);  color: var(--gray); }
 
+        /* ── Map pins (Weather Stations tab) ── */
+        .map-pin { position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform .15s cubic-bezier(.32,.72,0,1); }
+        .map-pin:hover { transform: translateY(-4px) scale(1.08); }
+        .map-pin-badge { display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 50%; box-shadow: 0 5px 12px rgba(30,24,10,.32), 0 1px 3px rgba(30,24,10,.2); }
+        .map-pin-tail { width: 0; height: 0; margin-top: -4px; border-left: 7px solid transparent; border-right: 7px solid transparent; filter: drop-shadow(0 2px 1px rgba(30,24,10,.2)); }
+        .map-pin-dots { position: absolute; top: -6px; right: -8px; display: flex; gap: 3px; background: #fff; border-radius: 999px; padding: 3px; box-shadow: 0 2px 6px rgba(30,24,10,.35); }
+        .map-pin-dot { border-radius: 999px; box-shadow: inset 0 0 0 1.5px rgba(0,0,0,.08); }
+        .map-pin-station .map-pin-badge { width: 42px; height: 42px; font-size: 21px; border: 3px solid var(--accent-d); }
+        .map-pin-station .map-pin-tail { border-top: 11px solid var(--accent-d); }
+        .map-pin-client .map-pin-badge { width: 34px; height: 34px; font-size: 16px; border: 3px solid var(--amber-ink); }
+        .map-pin-client .map-pin-tail { border-top: 9px solid var(--amber-ink); }
+
         /* ── Cost edit ── */
         .cost-edit { display: inline-flex; align-items: center; border: 1px solid var(--border-2); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
         .cost-prefix { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 0 5px 0 7px; }
@@ -821,8 +833,8 @@
                     </div>
                     <div style="padding:14px 18px 4px">
                         <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-2);margin-bottom:10px">
-                            <span>🛰️ Station — click to open its dashboard</span>
-                            <span>📍 Client — click to open their account page</span>
+                            <span>🛰️ Station (large blue pin) — click to open its dashboard</span>
+                            <span>🏠 Client (amber pin) — click to open their account page</span>
                             <span><span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--green);margin-right:3px"></span>Online</span>
                             <span><span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--rose);margin-right:3px"></span>Offline</span>
                             <span><span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--gray);margin-right:3px"></span>Unknown</span>
@@ -1092,30 +1104,32 @@
     function _stationIcon(st) {
         const c1 = _statusColor(st.ghiOk), c2 = _statusColor(st.weatherOk);
         return L.divIcon({
-            className: 'station-marker',
-            html: `<div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">
-                     <div style="font-size:24px;line-height:1">🛰️</div>
-                     <div style="display:flex;gap:3px;margin-top:2px">
-                       <span style="width:9px;height:9px;border-radius:999px;background:${c1};border:1.5px solid #fff"></span>
-                       <span style="width:9px;height:9px;border-radius:999px;background:${c2};border:1.5px solid #fff"></span>
+            className: '',
+            html: `<div class="map-pin map-pin-station">
+                     <div class="map-pin-dots">
+                       <span class="map-pin-dot" style="width:9px;height:9px;background:${c1}"></span>
+                       <span class="map-pin-dot" style="width:9px;height:9px;background:${c2}"></span>
                      </div>
+                     <div class="map-pin-badge">🛰️</div>
+                     <div class="map-pin-tail"></div>
                    </div>`,
-            iconSize: [40, 38], iconAnchor: [20, 34]
+            iconSize: [60, 56], iconAnchor: [30, 53]
         });
     }
 
     function _clientIcon(c) {
         const c1 = _statusColor(c.gridOk), c2 = _statusColor(c.solarOk);
         return L.divIcon({
-            className: 'client-marker',
-            html: `<div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">
-                     <div style="font-size:20px;line-height:1">📍</div>
-                     <div style="display:flex;gap:3px;margin-top:1px">
-                       <span style="width:8px;height:8px;border-radius:999px;background:${c1};border:1.5px solid #fff"></span>
-                       <span style="width:8px;height:8px;border-radius:999px;background:${c2};border:1.5px solid #fff"></span>
+            className: '',
+            html: `<div class="map-pin map-pin-client">
+                     <div class="map-pin-dots">
+                       <span class="map-pin-dot" style="width:8px;height:8px;background:${c1}"></span>
+                       <span class="map-pin-dot" style="width:8px;height:8px;background:${c2}"></span>
                      </div>
+                     <div class="map-pin-badge">🏠</div>
+                     <div class="map-pin-tail"></div>
                    </div>`,
-            iconSize: [34, 32], iconAnchor: [17, 30]
+            iconSize: [52, 46], iconAnchor: [26, 43]
         });
     }
 
