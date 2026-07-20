@@ -356,7 +356,14 @@ def get_reservations_with_details():
             crew_price_status = res.get("crew_price_status", "No")
             # Price to be collected is the cost submitted to the client
             price_to_be_collected = res.get("cost", "N/A")
+            # Older reservations may omit service_type — treat as cleaning
+            service_type = res.get("service_type") or "cleaning"
             reservation_detail = {
+                "_id": str(res.get("_id", "")),
+                "user_id": res.get("user_id", "N/A"),
+                "email": res.get("email", "N/A"),
+                "status": res.get("status", "pending"),
+                "service_type": service_type,
                 "longitude": res.get("longitude", "N/A"),
                 "latitude": res.get("latitude", "N/A"),
                 "number_of_panels": res.get("number_of_panels", "N/A"),
@@ -364,9 +371,10 @@ def get_reservations_with_details():
                 "time_slot": res.get("time_slot", "N/A"),
                 "phone_number": phone_number,
                 "panel_size": res.get("panel_size", "N/A"),
-                "client_name": client_name,
+                "client_name": client_name if client_name != "N/A" else res.get("user_id", "N/A"),
+                "crew_price": res.get("crew_price"),
                 "crew_price_status": crew_price_status,
-                "price_to_be_collected": price_to_be_collected
+                "price_to_be_collected": price_to_be_collected,
             }
             
             result.append(reservation_detail)
