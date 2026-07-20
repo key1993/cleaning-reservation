@@ -24,6 +24,12 @@ users_collection = db['users']
 
 routes = Blueprint("routes", __name__)
 
+SERVICE_LABELS = {
+    "cleaning": "cleaning service",
+    "maintenance_inspection": "maintenance inspection",
+    "wifi_setup": "Wi-Fi setup",
+}
+
 WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
 CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
 BACKUP_HOME_BASELINE_ENTITY = os.environ.get(
@@ -240,7 +246,9 @@ def create_reservation():
     # Use user_id from request data if provided, otherwise use session or default to "Guest"
     if "user_id" not in data:
         data["user_id"] = session.get("user_id", "Guest")
-    
+
+    data["service_type"] = data.get("service_type", "cleaning")
+
     is_valid, msg = validate_reservation(data)
     if not is_valid:
         return jsonify({"error": msg}), 400
@@ -272,12 +280,16 @@ def create_reservation():
     data["created_at"] = datetime.utcnow()
     result = reservations_collection.insert_one(data)
 
+    service_label = SERVICE_LABELS.get(data["service_type"], data["service_type"])
     msg = (
-        f"📢 New Enquiry!\n"
+        f"📢 New Enquiry! ({service_label})\n"
         f"👤 User ID: {data.get('user_id', 'Unknown')}\n"
         f"📅 {data.get('date', 'N/A')} at {data.get('time_slot', 'N/A')}\n"
-        f"📍 {data.get('longitude', 'N/A')}, {data.get('latitude', 'N/A')} – Panels: {data.get('number_of_panels', 'N/A')}"
     )
+    if data["service_type"] == "cleaning":
+        msg += f"📍 {data.get('longitude', 'N/A')}, {data.get('latitude', 'N/A')} – Panels: {data.get('number_of_panels', 'N/A')}"
+    elif data["service_type"] == "maintenance_inspection":
+        msg += f"📍 {data.get('longitude', 'N/A')}, {data.get('latitude', 'N/A')}"
     send_whatsapp_message(msg)
 
     return jsonify({"message": "Reservation created", "id": str(result.inserted_id)})
@@ -1086,10 +1098,14 @@ def _notify_price_set_for_reservation(reservation):
     fcm_token = get_fcm_token_for_reservation(reservation)
     if not fcm_token:
         return False, "No FCM token found for this user"
+    service_label = SERVICE_LABELS.get(
+        reservation.get("service_type", "cleaning"),
+        "service",
+    )
     n_result = send_fcm_notification(
         fcm_token=fcm_token,
         title="Price set",
-        body="Your cleaning service price has been set. Please open the app to view it.",
+        body=f"Your {service_label} price has been set. Please open the app to view it.",
         data={
             "type": "crew_price_set",
             "reservation_id": res_id_str,
