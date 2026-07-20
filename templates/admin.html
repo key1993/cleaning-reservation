@@ -397,7 +397,7 @@
         <header class="topbar">
             <div>
                 <div class="topbar-title" id="topbar-title">Reservations</div>
-                <div class="topbar-sub" id="topbar-sub">Manage and track all solar-panel cleaning reservations</div>
+                <div class="topbar-sub" id="topbar-sub">Manage and track all service reservations</div>
             </div>
             <div class="topbar-right">
                 <div class="searchbox">
@@ -414,10 +414,16 @@
                 <div class="card">
                     <div class="card-bar">
                         <div class="card-bar-left">
-                            <div class="card-title">Cleaning Reservations</div>
+                            <div class="card-title">Service Reservations</div>
                             <span class="card-count">{{ reservations|length }} total</span>
                         </div>
                         <div class="card-bar-right">
+                            <select id="serviceFilter" class="btn btn-sm" onchange="filterReservationsByService(this.value)" style="cursor:pointer">
+                                <option value="">All Services</option>
+                                <option value="cleaning">🧹 Cleaning</option>
+                                <option value="maintenance_inspection">🔧 Maintenance</option>
+                                <option value="wifi_setup">📶 Wi-Fi Setup</option>
+                            </select>
                             <button class="btn btn-primary btn-sm" onclick="showCalendarView()">📅 Calendar View</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteSelectedReservations()">🗑️ Delete Selected</button>
                             <span id="selectedReservationsCount" class="selected-count"></span>
@@ -429,6 +435,7 @@
                                 <tr>
                                     <th style="width:36px"><input type="checkbox" id="selectAllReservations" onchange="toggleSelectAllReservations(this)"></th>
                                     <th>ID</th>
+                                    <th>Service</th>
                                     <th>User ID</th>
                                     <th>Date</th>
                                     <th>Time Slot</th>
@@ -443,9 +450,16 @@
                             </thead>
                             <tbody>
                                 {% for r in reservations %}
-                                <tr>
+                                <tr data-service="{{ r.get('service_type', 'cleaning') }}">
                                     <td><input type="checkbox" class="reservation-checkbox" value="{{ r._id }}" onchange="updateSelectedReservationsCount()"></td>
                                     <td><span class="id-chip">{{ r._id }}</span></td>
+                                    <td>
+                                        {% set service_type = r.get('service_type', 'cleaning') %}
+                                        {% if service_type == 'maintenance_inspection' %}🔧 Maintenance
+                                        {% elif service_type == 'wifi_setup' %}📶 Wi-Fi Setup
+                                        {% else %}🧹 Cleaning
+                                        {% endif %}
+                                    </td>
                                     <td>{{ r.user_id }}</td>
                                     <td>{{ r.date }}</td>
                                     <td>{{ r.time_slot }}</td>
@@ -1038,7 +1052,7 @@
     const _allClients = [{% for c in clients %}{"id":"{{ c._id }}","name":{{ c.full_name|tojson }},"account_number":{{ (c.get('account_number') or '')|tojson }}},{% endfor %}];
 
     const TOPBAR_META = {
-        reservations: { t: 'Reservations', s: 'Manage and track all solar-panel cleaning reservations' },
+        reservations: { t: 'Reservations', s: 'Manage and track all service reservations' },
         clients:       { t: 'Clients',       s: 'Registered customers, systems and subscriptions' },
         cleaning_crew: { t: 'Cleaning Crew', s: 'Crew members who perform the cleanings' },
         pi_backups:    { t: 'Pi Backups',    s: 'Encrypted platform snapshots pushed from Pi devices' },
@@ -1253,6 +1267,13 @@
         const lq = q.toLowerCase();
         rows.forEach(row => {
             row.style.display = (!lq || row.textContent.toLowerCase().includes(lq)) ? '' : 'none';
+        });
+    }
+
+    function filterReservationsByService(serviceType) {
+        const rows = document.querySelectorAll('#reservations tbody tr');
+        rows.forEach(row => {
+            row.style.display = (!serviceType || row.dataset.service === serviceType) ? '' : 'none';
         });
     }
 
