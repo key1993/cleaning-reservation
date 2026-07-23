@@ -1761,6 +1761,46 @@ def client_device_reset_status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@routes.route("/api/subscription_status", methods=["GET"])
+def subscription_status():
+    """
+    For the mobile app: returns the client's next payment date and how many days are
+    left until it, so the Settings page can show a "X days left" widget.
+    """
+    try:
+        user_email = request.args.get("user_email")
+        user_id = request.args.get("user_id")  # firebase_uid
+
+        client = None
+        if user_email:
+            client = clients_collection.find_one({"email": user_email})
+        if not client and user_id:
+            client = clients_collection.find_one({"firebase_uid": user_id})
+
+        if not client:
+            return jsonify({"success": False, "error": "Client not found"}), 200
+
+        next_payment_date = client.get("next_payment_date")
+        if not next_payment_date:
+            return jsonify({"success": False, "error": "No subscription on file"}), 200
+
+        try:
+            next_payment = datetime.strptime(next_payment_date, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid next_payment_date on file"}), 200
+
+        days_left = (next_payment.date() - datetime.now().date()).days
+
+        return jsonify({
+            "success": True,
+            "next_payment_date": next_payment_date,
+            "subscription_type": client.get("subscription_type", "monthly"),
+            "days_left": days_left,
+        }), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @routes.route("/api/cancel_reservation", methods=["POST"])
 def cancel_reservation():
     """Cancel a reservation when crew cancels it"""
@@ -2506,6 +2546,66 @@ def process_payment_reminders():
         "disabled": disabled_count
     }
 
+
+def send_client_subscription_reminders():
+    """
+    Client-facing FCM reminder (shows up in the app's Notifications page) sent once a day for
+    each of the last 3 days before a client's subscription (next_payment_date) is due.
+    Bilingual (English/Arabic) based on the client's preferred_language.
+    Separate from process_payment_reminders(), which sends admin-facing WhatsApp alerts.
+    """
+    today = datetime.now().date()
+    target_dates = [
+        (today + timedelta(days=offset)).strftime("%Y-%m-%d")
+        for offset in (1, 2, 3)
+    ]
+
+    clients_due_soon = list(clients_collection.find({"next_payment_date": {"$in": target_dates}}))
+
+    sent = 0
+    skipped_no_token = 0
+
+    for c in clients_due_soon:
+        fcm_token = c.get("fcm_token")
+        if not fcm_token:
+            skipped_no_token += 1
+            continue
+
+        next_payment_date = c.get("next_payment_date")
+        days_left = (datetime.strptime(next_payment_date, "%Y-%m-%d").date() - today).days
+        is_arabic = _canonical_preferred_language(c.get("preferred_language")) == "Arabic"
+
+        if is_arabic:
+            title = "تذكير بموعد الاشتراك"
+            if days_left == 1:
+                body = "متبقٍ يوم واحد على انتهاء اشتراكك. يرجى الدفع لتجنب انقطاع الخدمة."
+            else:
+                body = f"متبقي {days_left} أيام على انتهاء اشتراكك. يرجى الدفع لتجنب انقطاع الخدمة."
+        else:
+            title = "Subscription Reminder"
+            day_word = "day" if days_left == 1 else "days"
+            body = f"Your subscription ends in {days_left} {day_word}. Please pay to avoid a service interruption."
+
+        result = send_fcm_notification(
+            fcm_token=fcm_token,
+            title=title,
+            body=body,
+            data={
+                "type": "subscription_reminder",
+                "days_left": days_left,
+                "next_payment_date": next_payment_date,
+            },
+        )
+        if result.get("success"):
+            sent += 1
+
+    return {
+        "checked": len(clients_due_soon),
+        "sent": sent,
+        "skipped_no_token": skipped_no_token,
+    }
+
+
 @routes.route("/check_payment_reminders")
 def check_payment_reminders():
     """Route endpoint for checking payment reminders (manual trigger)"""
@@ -2516,6 +2616,12 @@ def check_payment_reminders():
 def send_payment_reminders():
     """Manual trigger for payment reminders (for testing)"""
     return check_payment_reminders()
+
+@routes.route("/check_subscription_reminders")
+def check_subscription_reminders():
+    """Route endpoint for manually triggering client-facing subscription reminders (testing)"""
+    result = send_client_subscription_reminders()
+    return jsonify(result)
 
 @routes.route("/disable_client_account/<client_id>", methods=["POST"])
 def disable_client_account(client_id):
