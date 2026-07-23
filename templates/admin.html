@@ -617,7 +617,14 @@
                                             {% endif %}
                                         </div>
                                     </td>
-                                    <td>{{ c.get('preferred_language') | preferred_language_display }}</td>
+                                    <td>
+                                        <form method="POST" action="/update_preferred_language/{{ c._id }}">
+                                            <select name="preferred_language" onchange="this.form.submit()" class="mini-select">
+                                                <option value="English" {% if (c.get('preferred_language') | preferred_language_display) != 'Arabic' %}selected{% endif %}>English</option>
+                                                <option value="Arabic" {% if (c.get('preferred_language') | preferred_language_display) == 'Arabic' %}selected{% endif %}>Arabic</option>
+                                            </select>
+                                        </form>
+                                    </td>
                                     <td>
                                         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
                                             <div class="token-cell">
