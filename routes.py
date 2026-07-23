@@ -30,6 +30,12 @@ SERVICE_LABELS = {
     "wifi_setup": "Wi-Fi setup",
 }
 
+SERVICE_LABELS_AR = {
+    "cleaning": "خدمة التنظيف",
+    "maintenance_inspection": "فحص الصيانة",
+    "wifi_setup": "إعداد الواي فاي",
+}
+
 WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
 CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
 BACKUP_HOME_BASELINE_ENTITY = os.environ.get(
@@ -503,16 +509,14 @@ def update_crew_price():
         )
 
         res_id_str = str(reservation["_id"])
-        notification_sent, notification_error = _notify_price_set_for_reservation(reservation)
+        # No FCM here — crew_price is an internal figure the crew submits for review.
+        # The client is only notified once the admin finalizes it via /update_cost.
 
         response_body = {
             "success": True,
             "message": "Crew price updated successfully",
             "reservation_id": res_id_str,
-            "notification_sent": notification_sent,
         }
-        if notification_error:
-            response_body["notification_error"] = notification_error
 
         return jsonify(response_body), 200
         
@@ -1097,23 +1101,99 @@ def get_fcm_token_for_reservation(reservation, user_email=None, user_id_override
     return None
 
 
+def get_preferred_language_for_reservation(reservation, user_email=None, user_id_override=None):
+    """
+    Resolve the client's preferred_language ("Arabic" or "English") for a reservation,
+    using the same identifier chain as get_fcm_token_for_reservation.
+    """
+    if not reservation:
+        return None
+
+    user_identifier = user_email or user_id_override or reservation.get("user_id") or reservation.get("email")
+
+    if user_identifier and user_identifier != "Guest":
+        try:
+            user_by_id = users_collection.find_one({"_id": ObjectId(user_identifier)})
+            if user_by_id and user_by_id.get("preferred_language"):
+                return user_by_id.get("preferred_language")
+        except Exception:
+            pass
+
+    if user_identifier:
+        email_to_search = user_email or reservation.get("email")
+        if email_to_search:
+            user_doc = users_collection.find_one({"email": email_to_search})
+            if user_doc and user_doc.get("preferred_language"):
+                return user_doc.get("preferred_language")
+
+        if user_id_override:
+            try:
+                user_doc = users_collection.find_one({"_id": ObjectId(user_id_override)})
+                if user_doc and user_doc.get("preferred_language"):
+                    return user_doc.get("preferred_language")
+            except Exception:
+                pass
+
+        user_doc = users_collection.find_one({"user_id": user_identifier})
+        if user_doc and user_doc.get("preferred_language"):
+            return user_doc.get("preferred_language")
+
+    email_to_search = user_email or reservation.get("email")
+    if email_to_search:
+        client_doc = clients_collection.find_one({"email": email_to_search})
+        if client_doc and client_doc.get("preferred_language"):
+            return client_doc.get("preferred_language")
+
+    if reservation.get("phone"):
+        client_doc = clients_collection.find_one({"phone": reservation.get("phone")})
+        if client_doc and client_doc.get("preferred_language"):
+            return client_doc.get("preferred_language")
+
+    if user_identifier and user_identifier != "Guest":
+        for query in (
+            {"email": user_identifier},
+            {"phone": user_identifier},
+            {"firebase_uid": user_identifier},
+        ):
+            client_doc = clients_collection.find_one(query)
+            if client_doc and client_doc.get("preferred_language"):
+                return client_doc.get("preferred_language")
+        try:
+            client_doc = clients_collection.find_one({"_id": ObjectId(user_identifier)})
+            if client_doc and client_doc.get("preferred_language"):
+                return client_doc.get("preferred_language")
+        except Exception:
+            pass
+
+    return None
+
+
 def _notify_price_set_for_reservation(reservation):
     """
-    FCM when admin sets a price the client should see (crew_price or cost).
+    FCM when the admin finalizes a price (via /update_cost) that the client should see.
     Returns (notification_sent: bool, notification_error: str | None).
     """
     res_id_str = str(reservation["_id"])
     fcm_token = get_fcm_token_for_reservation(reservation)
     if not fcm_token:
         return False, "No FCM token found for this user"
-    service_label = SERVICE_LABELS.get(
-        reservation.get("service_type", "cleaning"),
-        "service",
-    )
+
+    is_arabic = get_preferred_language_for_reservation(reservation) == "Arabic"
+    service_type = reservation.get("service_type", "cleaning")
+
+    if is_arabic:
+        service_label = SERVICE_LABELS_AR.get(service_type, "الخدمة")
+        title = "تم تحديد السعر"
+        body = f"تم تحديد سعر {service_label} الخاص بك. يرجى فتح التطبيق للاطلاع على التفاصيل."
+    else:
+        service_label = SERVICE_LABELS.get(service_type, "service")
+        title = "Price set"
+        body = f"Your {service_label} price has been set. Please open the app to view it."
+
     n_result = send_fcm_notification(
         fcm_token=fcm_token,
-        title="Price set",
-        body=f"Your {service_label} price has been set. Please open the app to view it.",
+        title=title,
+        body=body,
         data={
             "type": "crew_price_set",
             "reservation_id": res_id_str,
