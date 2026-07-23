@@ -445,6 +445,7 @@
                                     <th>Status</th>
                                     <th>Cost (JOD)</th>
                                     <th>Crew Price (JOD)</th>
+                                    <th>Client Review</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -494,6 +495,18 @@
                                         </form>
                                     </td>
                                     <td>{{ r.get('crew_price', 'N/A') }}</td>
+                                    <td style="max-width:200px">
+                                        {% if r.get('client_rating') %}
+                                            <div style="display:flex;flex-direction:column;gap:3px">
+                                                <span class="badge badge-amber">⭐ {{ r.client_rating }}/5</span>
+                                                {% if r.get('client_rating_comment') %}
+                                                    <span style="font-size:12px;color:var(--text-2);white-space:normal" title="{{ r.client_rating_comment }}">{{ r.client_rating_comment }}</span>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <span style="color:var(--text-3);font-size:12px">Not rated</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <div class="action-buttons-cell">
                                             {% if r.status == 'Pending' %}
