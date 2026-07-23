@@ -122,7 +122,16 @@ def admin_dashboard():
         for r in reservations:
             r["_id"] = str(r["_id"])
         for crew in cleaning_crew:
-            crew["_id"] = str(crew["_id"])
+            crew_id_str = str(crew["_id"])
+            rated = list(reservations_collection.find(
+                {"completed_by_crew_id": crew_id_str, "client_rating": {"$exists": True}},
+                {"client_rating": 1},
+            ))
+            crew["rating_count"] = len(rated)
+            crew["rating_avg"] = (
+                round(sum(r["client_rating"] for r in rated) / len(rated), 1) if rated else None
+            )
+            crew["_id"] = crew_id_str
         for s in weather_stations:
             s["_id"] = str(s["_id"])
         return render_template(
