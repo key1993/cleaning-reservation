@@ -36,6 +36,21 @@ SERVICE_LABELS_AR = {
     "wifi_setup": "إعداد الواي فاي",
 }
 
+# Server-side localized overrides for notification_type values sent to /api/send_notification.
+# The caller (Flutter) still sends a title/body as a fallback for unrecognized types.
+NOTIFICATION_TEMPLATES = {
+    "crew_en_route": {
+        "English": {
+            "title": "Crew On The Way! 🚗",
+            "body": "The cleaning crew is on their way to your location. You can track their location in the app.",
+        },
+        "Arabic": {
+            "title": "الطاقم في الطريق إليك! 🚗",
+            "body": "طاقم التنظيف في طريقه إلى موقعك. يمكنك تتبع موقعه من خلال التطبيق.",
+        },
+    },
+}
+
 WHATSAPP_PHONE = os.environ.get("WHATSAPP_PHONE", "+962796074185")
 CALLMEBOT_API_KEY = os.environ.get("CALLMEBOT_API_KEY", "6312358")
 BACKUP_HOME_BASELINE_ENTITY = os.environ.get(
@@ -1246,13 +1261,24 @@ def send_notification():
         fcm_token = get_fcm_token_for_reservation(
             reservation, user_email=user_email, user_id_override=user_id
         )
-        
+
         if not fcm_token:
             return jsonify({
                 "success": False,
                 "error": "FCM token not found for user"
             }), 404
-        
+
+        # Override with a server-side localized title/body when we have one for this
+        # notification_type — the caller's title/body remain the fallback otherwise.
+        template = NOTIFICATION_TEMPLATES.get(notification_type)
+        if template:
+            is_arabic = get_preferred_language_for_reservation(
+                reservation, user_email=user_email, user_id_override=user_id
+            ) == "Arabic"
+            localized = template["Arabic"] if is_arabic else template["English"]
+            title = localized["title"]
+            body = localized["body"]
+
         # Step 4: Prepare notification data
         # Convert notification_data dict values to strings (FCM requires string values)
         fcm_data = {}
