@@ -2,6 +2,7 @@ from flask import Flask
 from routes import (
     routes,
     process_payment_reminders,
+    send_client_subscription_reminders,
     refresh_all_clients_backup_baselines,
     _canonical_preferred_language,
 )
@@ -97,6 +98,11 @@ def scheduled_payment_reminders():
         print(f"[SCHEDULER] Payment reminders sent: {result['total']} total ({result['due_soon']} due soon, {result['overdue']} overdue)")
     except Exception as e:
         print(f"[SCHEDULER] Error sending payment reminders: {e}")
+    try:
+        sub_result = send_client_subscription_reminders()
+        print(f"[SCHEDULER] Client subscription reminders sent: {sub_result['sent']}/{sub_result['checked']} (no token: {sub_result['skipped_no_token']})")
+    except Exception as e:
+        print(f"[SCHEDULER] Error sending client subscription reminders: {e}")
 
 # Initialize scheduler (only on the worker that acquires the lock)
 scheduler = BackgroundScheduler()
