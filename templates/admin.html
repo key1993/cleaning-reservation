@@ -727,6 +727,7 @@
                                     <th>Username</th>
                                     <th>Phone Number</th>
                                     <th>Firebase Email</th>
+                                    <th>Rating</th>
                                     <th>Account Status</th>
                                     <th>Created At</th>
                                     <th>Firebase Actions</th>
@@ -742,6 +743,13 @@
                                     <td><span style="font-family:var(--mono);font-size:12.5px">{{ crew.username }}</span></td>
                                     <td>{{ crew.phone_number }}</td>
                                     <td>{{ crew.firebase_email or 'N/A' }}</td>
+                                    <td>
+                                        {% if crew.rating_avg is not none %}
+                                            <span class="badge badge-amber">⭐ {{ crew.rating_avg }} <span style="font-weight:400">({{ crew.rating_count }})</span></span>
+                                        {% else %}
+                                            <span style="color:var(--text-3);font-size:12px">No ratings yet</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if crew.firebase_uid %}
                                             <div style="display:flex;flex-direction:column;gap:3px">
