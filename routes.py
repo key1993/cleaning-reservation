@@ -1896,35 +1896,140 @@ def finish_work():
                 "success": False,
                 "error": f"Cannot complete reservation: reservation is {current_status}"
             }), 400
-        
+
+        # Record which crew member finished the job, so the client's rating can be
+        # attributed to them and rolled up into their average on the admin's Crew tab.
+        set_doc = {
+            "status": "completed",
+            "completed_at": datetime.utcnow().isoformat(),
+        }
+        crew_username = (data.get("crew_username") or "").strip()
+        if crew_username:
+            crew_doc = cleaning_crew_collection.find_one({"username": crew_username})
+            if crew_doc:
+                set_doc["completed_by_crew_id"] = str(crew_doc["_id"])
+                set_doc["completed_by_crew_username"] = crew_username
+
         # Update reservation status to "completed" and add timestamp
         result = reservations_collection.update_one(
             {"_id": ObjectId(reservation_id)},
-            {
-                "$set": {
-                    "status": "completed",
-                    "completed_at": datetime.utcnow().isoformat()
-                }
-            }
+            {"$set": set_doc}
         )
-        
+
         # Check if update was successful
         if result.matched_count == 0:
             return jsonify({
                 "success": False,
                 "error": "Reservation not found"
             }), 404
-        
+
         return jsonify({
             "success": True,
             "message": "Reservation cancelled successfully"
         }), 200
-        
+
     except Exception as e:
         return jsonify({
             "success": False,
             "error": f"Internal server error: {str(e)}"
         }), 500
+
+
+@routes.route("/api/rate_service", methods=["POST"])
+def rate_service():
+    """Client submits a 1-5 star rating (+ optional comment) for a completed reservation."""
+    try:
+        data = request.json
+        if not data or "reservation_id" not in data or "rating" not in data:
+            return jsonify({
+                "success": False,
+                "error": "reservation_id and rating are required"
+            }), 400
+
+        reservation_id = data.get("reservation_id")
+        comment = (data.get("comment") or "").strip()
+
+        try:
+            rating = int(data.get("rating"))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "rating must be an integer 1-5"}), 400
+
+        if rating < 1 or rating > 5:
+            return jsonify({"success": False, "error": "rating must be between 1 and 5"}), 400
+
+        try:
+            reservation = reservations_collection.find_one({"_id": ObjectId(reservation_id)})
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid reservation_id format"}), 400
+
+        if not reservation:
+            return jsonify({"success": False, "error": "Reservation not found"}), 404
+
+        if reservation.get("client_rating") is not None:
+            return jsonify({
+                "success": True,
+                "already_rated": True,
+                "message": "This reservation has already been rated",
+            }), 200
+
+        reservations_collection.update_one(
+            {"_id": ObjectId(reservation_id)},
+            {"$set": {
+                "client_rating": rating,
+                "client_rating_comment": comment,
+                "client_rated_at": datetime.utcnow().isoformat(),
+            }}
+        )
+
+        return jsonify({"success": True, "message": "Thank you for your feedback"}), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Internal server error: {str(e)}"}), 500
+
+
+@routes.route("/api/pending_rating", methods=["GET"])
+def pending_rating():
+    """
+    For the app to check on launch: does this user have a completed, unrated reservation?
+    Returns the most recently completed one, if any.
+    """
+    try:
+        user_email = request.args.get("user_email")
+        user_id = request.args.get("user_id")
+        if not user_email and not user_id:
+            return jsonify({"success": False, "error": "user_email or user_id is required"}), 400
+
+        query_or = []
+        if user_id:
+            query_or.append({"user_id": user_id})
+        if user_email:
+            query_or.append({"email": user_email})
+            query_or.append({"user_id": user_email})
+
+        candidate = reservations_collection.find_one(
+            {
+                "$or": query_or,
+                "status": "completed",
+                "client_rating": {"$exists": False},
+            },
+            sort=[("completed_at", -1)],
+        )
+
+        if not candidate:
+            return jsonify({"success": True, "pending_rating": None}), 200
+
+        return jsonify({
+            "success": True,
+            "pending_rating": {
+                "reservation_id": str(candidate["_id"]),
+                "service_type": candidate.get("service_type", "cleaning"),
+                "date": candidate.get("date"),
+            },
+        }), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Internal server error: {str(e)}"}), 500
+
 
 @routes.route("/api/register_crew", methods=["POST"])
 def register_crew():
