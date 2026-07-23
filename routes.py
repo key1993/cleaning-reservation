@@ -2167,6 +2167,22 @@ def update_subscription(id):
     )
     return redirect("/admin")
 
+@routes.route("/update_preferred_language/<id>", methods=["POST"])
+def update_preferred_language(id):
+    """Admin override for a client's preferred_language (drives which language FCM pushes use)."""
+    new_language = _canonical_preferred_language(request.form.get("preferred_language"))
+    if new_language not in ["English", "Arabic"]:
+        return jsonify({"error": "Invalid preferred_language"}), 400
+
+    result = clients_collection.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"preferred_language": new_language}}
+    )
+    if result.matched_count == 0:
+        return jsonify({"error": "Client not found"}), 404
+
+    return redirect("/admin")
+
 @routes.route("/confirm_payment", methods=["POST"])
 def confirm_payment():
     data = request.json
