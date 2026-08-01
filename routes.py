@@ -2717,6 +2717,27 @@ def process_payment_reminders():
                         f"🔐 Firebase account and external widget have been disabled"
                     )
                     send_whatsapp_message(msg_disabled)
+
+                    # Also notify the client directly in the app that their account was suspended
+                    fcm_token = c.get("fcm_token")
+                    if fcm_token:
+                        is_arabic = _canonical_preferred_language(c.get("preferred_language")) == "Arabic"
+                        if is_arabic:
+                            suspend_title = "تم تعليق الحساب"
+                            suspend_body = "تم تعليق حسابك بسبب عدم دفع الاشتراك. يرجى الدفع لإعادة تفعيل الحساب."
+                        else:
+                            suspend_title = "Account Suspended"
+                            suspend_body = "Your account has been suspended due to a missed subscription payment. Please pay to reactivate your account."
+
+                        send_fcm_notification(
+                            fcm_token=fcm_token,
+                            title=suspend_title,
+                            body=suspend_body,
+                            data={
+                                "type": "subscription_suspended",
+                                "next_payment_date": next_payment,
+                            },
+                        )
     
     return {
         "message": f"✅ {total_reminders} reminder(s) sent. {disabled_count} account(s) disabled.",
@@ -2729,58 +2750,80 @@ def process_payment_reminders():
 
 def send_client_subscription_reminders():
     """
-    Client-facing FCM reminder (shows up in the app's Notifications page) sent once a day for
-    each of the last 3 days before a client's subscription (next_payment_date) is due.
+    Client-facing FCM reminders (shown in the app's Notifications page):
+      - 5 days before the client's subscription (next_payment_date) is due.
+      - 24 hours (1 day) before it is due.
     Bilingual (English/Arabic) based on the client's preferred_language.
-    Separate from process_payment_reminders(), which sends admin-facing WhatsApp alerts.
+    Each client is only sent a given reminder once per due date, tracked via a
+    per-offset "sent_for" field on the client doc (so re-running the job the
+    same day, e.g. via the manual /check_subscription_reminders route, doesn't
+    duplicate notifications).
+    Separate from process_payment_reminders(), which sends admin-facing WhatsApp alerts
+    and handles suspending the account (and notifying the client) once overdue.
     """
     today = datetime.now().date()
-    target_dates = [
-        (today + timedelta(days=offset)).strftime("%Y-%m-%d")
-        for offset in (1, 2, 3)
-    ]
+    reminder_offsets = {
+        5: "reminder_5day_sent_for",
+        1: "reminder_1day_sent_for",
+    }
 
-    clients_due_soon = list(clients_collection.find({"next_payment_date": {"$in": target_dates}}))
-
+    checked = 0
     sent = 0
     skipped_no_token = 0
 
-    for c in clients_due_soon:
-        fcm_token = c.get("fcm_token")
-        if not fcm_token:
-            skipped_no_token += 1
-            continue
+    for days_left, sent_field in reminder_offsets.items():
+        target_date = (today + timedelta(days=days_left)).strftime("%Y-%m-%d")
+        clients_due = list(clients_collection.find({
+            "next_payment_date": target_date,
+            sent_field: {"$ne": target_date},
+        }))
+        checked += len(clients_due)
 
-        next_payment_date = c.get("next_payment_date")
-        days_left = (datetime.strptime(next_payment_date, "%Y-%m-%d").date() - today).days
-        is_arabic = _canonical_preferred_language(c.get("preferred_language")) == "Arabic"
+        for c in clients_due:
+            fcm_token = c.get("fcm_token")
+            if not fcm_token:
+                skipped_no_token += 1
+                continue
 
-        if is_arabic:
-            title = "تذكير بموعد الاشتراك"
+            is_arabic = _canonical_preferred_language(c.get("preferred_language")) == "Arabic"
+
             if days_left == 1:
-                body = "متبقٍ يوم واحد على انتهاء اشتراكك. يرجى الدفع لتجنب انقطاع الخدمة."
+                if is_arabic:
+                    title = "اشتراكك ينتهي خلال 24 ساعة"
+                    body = "متبقٍ 24 ساعة على انتهاء اشتراكك. يرجى الدفع لتجنب تعليق حسابك."
+                else:
+                    title = "Subscription Ending in 24 Hours"
+                    body = "Your subscription ends in 24 hours. Please pay to avoid your account being suspended."
             else:
-                body = f"متبقي {days_left} أيام على انتهاء اشتراكك. يرجى الدفع لتجنب انقطاع الخدمة."
-        else:
-            title = "Subscription Reminder"
-            day_word = "day" if days_left == 1 else "days"
-            body = f"Your subscription ends in {days_left} {day_word}. Please pay to avoid a service interruption."
+                if is_arabic:
+                    title = "تذكير بموعد الاشتراك"
+                    body = f"متبقي {days_left} أيام على انتهاء اشتراكك. يرجى الدفع لتجنب انقطاع الخدمة."
+                else:
+                    title = "Subscription Reminder"
+                    body = f"Your subscription ends in {days_left} days. Please pay to avoid a service interruption."
 
-        result = send_fcm_notification(
-            fcm_token=fcm_token,
-            title=title,
-            body=body,
-            data={
-                "type": "subscription_reminder",
-                "days_left": days_left,
-                "next_payment_date": next_payment_date,
-            },
-        )
-        if result.get("success"):
-            sent += 1
+            result = send_fcm_notification(
+                fcm_token=fcm_token,
+                title=title,
+                body=body,
+                data={
+                    "type": "subscription_reminder",
+                    "days_left": days_left,
+                    "next_payment_date": target_date,
+                },
+            )
+            if result.get("success"):
+                sent += 1
+
+            # Mark as sent for this due date regardless of FCM outcome so a stale/invalid
+            # token doesn't cause the job to retry (and spam) on every subsequent run.
+            clients_collection.update_one(
+                {"_id": c["_id"]},
+                {"$set": {sent_field: target_date}},
+            )
 
     return {
-        "checked": len(clients_due_soon),
+        "checked": checked,
         "sent": sent,
         "skipped_no_token": skipped_no_token,
     }
