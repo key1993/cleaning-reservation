@@ -8,7 +8,6 @@ import requests
 import urllib.parse
 import os
 from datetime import datetime, timedelta
-import zaincash
 
 def login_required(f):
     """Decorator to require user login for protected routes"""
@@ -1802,126 +1801,7 @@ def subscription_status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@routes.route("/api/zaincash/init_subscription_payment", methods=["POST"])
-def zaincash_init_subscription_payment():
-    """
-    Starts a ZainCash hosted-checkout transaction for the client's subscription
-    payment. Returns {'checkout_url': ...} for the Flutter app to open in a WebView.
-    See docs/zain_cash.md for the full flow.
-    """
-    try:
-        data = request.json or {}
-        user_email = data.get("user_email")
-        user_id = data.get("user_id")
-
-        client = None
-        if user_email:
-            client = clients_collection.find_one({"email": user_email})
-        if not client and user_id:
-            client = clients_collection.find_one({"firebase_uid": user_id})
-
-        if not client:
-            return jsonify({"success": False, "error": "Client not found"}), 200
-
-        subscription_type = client.get("subscription_type", "monthly")
-        amount = zaincash.amount_for_subscription_type(subscription_type)
-        if not amount or amount <= 0:
-            return jsonify({"success": False, "error": "Subscription amount is not configured"}), 200
-
-        redirect_url = os.environ.get(
-            "ZAINCASH_REDIRECT_URL",
-            request.url_root.rstrip("/") + "/api/zaincash/callback",
-        )
-
-        result = zaincash.init_transaction(
-            amount=amount,
-            order_id=str(client["_id"]),
-            redirect_url=redirect_url,
-        )
-
-        transaction_id = result.get("id")
-        if not transaction_id:
-            return jsonify({
-                "success": False,
-                "error": result.get("msg") or result.get("err") or "ZainCash init failed",
-            }), 200
-
-        clients_collection.update_one(
-            {"_id": client["_id"]},
-            {"$set": {
-                "pending_zaincash_transaction_id": transaction_id,
-                "pending_zaincash_amount": amount,
-            }},
-        )
-
-        return jsonify({
-            "success": True,
-            "checkout_url": zaincash.checkout_url(transaction_id),
-        }), 200
-    except zaincash.ZainCashNotConfigured as e:
-        return jsonify({"success": False, "error": str(e)}), 200
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@routes.route("/api/zaincash/callback", methods=["GET", "POST"])
-def zaincash_callback():
-    """
-    ZainCash redirects here (browser/WebView) with ?token=<jwt> after the customer
-    finishes (or abandons) the hosted checkout page.
-    """
-    token = request.args.get("token") or (request.form.get("token") if request.method == "POST" else None)
-    if not token:
-        return render_template("zaincash_result.html", success=False, message="Missing token"), 400
-
-    try:
-        payload = zaincash.verify_callback_token(token)
-    except Exception as e:
-        return render_template("zaincash_result.html", success=False, message=str(e)), 400
-
-    status = payload.get("status")
-    order_id = payload.get("orderId")
-
-    try:
-        client = clients_collection.find_one({"_id": ObjectId(order_id)}) if order_id else None
-    except Exception:
-        client = None
-
-    if client and status == "success":
-        current_next_payment = datetime.strptime(
-            client.get("next_payment_date", datetime.now().strftime("%Y-%m-%d")),
-            "%Y-%m-%d",
-        )
-        subscription_type = client.get("subscription_type", "monthly")
-        if subscription_type == "monthly":
-            new_next_payment = current_next_payment + timedelta(days=30)
-        else:
-            new_next_payment = current_next_payment + timedelta(days=365)
-
-        clients_collection.update_one(
-            {"_id": client["_id"]},
-            {"$set": {
-                "next_payment_date": new_next_payment.strftime("%Y-%m-%d"),
-                "last_zaincash_transaction_id": payload.get("id"),
-            }, "$unset": {"pending_zaincash_transaction_id": "", "pending_zaincash_amount": ""}},
-        )
-        return render_template("zaincash_result.html", success=True, message="Payment successful"), 200
-
-    if client:
-        clients_collection.update_one(
-            {"_id": client["_id"]},
-            {"$unset": {"pending_zaincash_transaction_id": "", "pending_zaincash_amount": ""}},
-        )
-
-    return render_template(
-        "zaincash_result.html",
-        success=False,
-        message=payload.get("msg", "Payment failed"),
-    ), 200
-
-
-# JOD amounts for the Apple Pay flow (separate from ZainCash's IQD amounts above,
-# since Apple Pay charges are set up in the client's local currency).
+# JOD amounts for the Apple Pay flow.
 APPLE_PAY_MONTHLY_AMOUNT_JOD = float(os.environ.get("APPLE_PAY_MONTHLY_AMOUNT_JOD", "0"))
 APPLE_PAY_YEARLY_AMOUNT_JOD = float(os.environ.get("APPLE_PAY_YEARLY_AMOUNT_JOD", "0"))
 
@@ -1973,11 +1853,11 @@ def apple_pay_process_subscription_payment():
     TODO: this does not charge the token yet — no payment processor (Stripe, Adyen,
     etc.) is wired up to decrypt/capture Apple Pay tokens. Once one is chosen, submit
     `payment_token` to it here and only advance next_payment_date on a successful
-    capture, the same way zaincash_callback does for ZainCash.
+    capture.
     """
     return jsonify({
         "success": False,
-        "error": "Apple Pay processing is not configured yet. Please use ZainCash for now.",
+        "error": "Apple Pay processing is not configured yet.",
     }), 200
 
 
