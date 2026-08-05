@@ -5,4 +5,3 @@ dnspython
 requests
 APScheduler
 firebase-admin
-PyJWT
